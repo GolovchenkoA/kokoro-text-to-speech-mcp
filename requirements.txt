@@ -1,0 +1,5 @@
+kokoro==0.9.4
+mcp[cli]>=1.2
+soundfile>=0.12
+numpy>=2.0
+torch
