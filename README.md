@@ -11,16 +11,28 @@ Tools:
 `kokoro==0.9.4` declares `requires-python <3.13`, so pip refuses it on 3.14 by default.
 Bypass the check (whether all transitive deps — torch, misaki, spaCy — have 3.14 wheels on your platform is the part to verify):
 
+**Linux / macOS**
+
 ```bash
 python3.14 -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install --ignore-requires-python -r requirements.txt
+source .venv/bin/activate
+pip install --ignore-requires-python --only-binary=:all: -r requirements.txt
 ```
 
-CPU-only torch (smaller download):
+**Windows (PowerShell)**
+
+```powershell
+py -3.14 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install --ignore-requires-python --only-binary=:all: -r requirements.txt
+```
+
+`--only-binary=:all:` avoids pip trying to compile spaCy/blis from source, which fails on Windows.
+
+CPU-only torch (smaller download) — add the extra index:
 
 ```bash
-pip install --ignore-requires-python --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+pip install --ignore-requires-python --only-binary=:all: --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 ```
 
 System dependency — espeak-ng (used for out-of-dictionary words and non-English languages):
@@ -46,6 +58,8 @@ Edit `claude_desktop_config.json`:
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
+**Linux / macOS** (interpreter is `.venv/bin/python`)
+
 ```json
 {
   "mcpServers": {
@@ -61,7 +75,24 @@ Edit `claude_desktop_config.json`:
 }
 ```
 
-On Windows use `C:\\path\\to\\kokoro-mcp\\.venv\\Scripts\\python.exe`. Restart Claude Desktop, then ask:
+**Windows** (interpreter is `.venv\Scripts\python.exe` — there is no `bin` folder; backslashes must be doubled in JSON)
+
+```json
+{
+  "mcpServers": {
+    "kokoro-tts": {
+      "command": "C:\\path\\to\\kokoro-mcp\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\path\\to\\kokoro-mcp\\server.py"],
+      "env": {
+        "KOKORO_OUTPUT_DIR": "C:\\path\\to\\kokoro-mcp\\kokoro_output",
+        "KOKORO_DEFAULT_VOICE": "af_heart"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop, then ask:
 "Read this paragraph aloud with bm_george and save it as intro.wav".
 
 ## Configuration (env vars)

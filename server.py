@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 # stdout is the MCP transport — all logging must go to stderr.
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -54,7 +54,7 @@ VOICES = {
     "z": ["zf_xiaobei", "zf_xiaoni", "zm_yunjian"],
 }
 
-mcp = FastMCP("kokoro-tts")
+mcp = MCPServer("kokoro-tts")
 
 _pipelines: dict[str, object] = {}
 _lock = threading.Lock()
