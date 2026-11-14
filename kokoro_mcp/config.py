@@ -6,6 +6,7 @@ import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ DEFAULT_VOICE = "af_heart"
 DEFAULT_VAD_THRESHOLD = 500.0  # RMS on the int16 scale; speech is typically 1000+, a quiet room < 300
 
 _TRUE_VALUES = ("1", "true", "yes", "on")
+_FALSE_VALUES = ("0", "false", "no", "off")
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,12 @@ class Settings:
     mic_device: str | None = None
     vad_mode: str = "energy"  # "energy" or "off"
     vad_threshold: float = DEFAULT_VAD_THRESHOLD
+    shared_instance: bool = True  # False: every server copy works on its own (no primary/secondary)
+    ipc_dir: Path | None = None  # where the shared key lives; None = ~/.kokoro_mcp
+
+    @property
+    def resolved_ipc_dir(self) -> Path:
+        return self.ipc_dir or Path.home() / ".kokoro_mcp"
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -55,4 +63,6 @@ class Settings:
             mic_device=env.get("KOKORO_MIC_DEVICE") or None,
             vad_mode=vad_mode,
             vad_threshold=vad_threshold,
+            shared_instance=env.get("KOKORO_SHARED_INSTANCE", "1").lower() not in _FALSE_VALUES,
+            ipc_dir=Path(env["KOKORO_IPC_DIR"]) if env.get("KOKORO_IPC_DIR") else None,
         )

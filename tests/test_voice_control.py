@@ -18,8 +18,12 @@ from tests.fakes import thread_names, wait_until
 PHRASES = ["pause speech", "continue speech", "stop speech", "status speech"]
 
 
-def run_loop(listener) -> threading.Thread:
-    thread = threading.Thread(target=listener.run, daemon=True)
+def listener(app):
+    return app.manager.runtime.voice_control
+
+
+def run_loop(voice_listener) -> threading.Thread:
+    thread = threading.Thread(target=voice_listener.run, daemon=True)
     thread.start()
     return thread
 
@@ -32,7 +36,7 @@ def stop_loop(fakes, thread) -> None:
 @pytest.fixture
 def voice_loop(fakes, app):
     """Run the real voice-control loop in a thread; the test 'speaks' through fakes.sd.mic."""
-    thread = run_loop(app.voice_control)
+    thread = run_loop(listener(app))
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None), "voice loop did not open the microphone"
     yield thread
     stop_loop(fakes, thread)
@@ -47,7 +51,7 @@ def speaking(app, fakes):
 @pytest.fixture
 def state(app):
     """Callable returning the current speech state."""
-    return lambda: app.speech.current_session.state
+    return lambda: app.manager.runtime.speech.current_session.state
 
 
 # -- setup ---------------------------------------------------------------------------------------
@@ -60,7 +64,7 @@ def test_recognizer_is_restricted_to_the_four_phrases(fakes, voice_loop):
 
 def test_local_model_and_microphone_can_be_configured(fakes, make_app):
     app = make_app(vosk_model="/models/vosk-small", mic_device="USB Mic")
-    thread = run_loop(app.voice_control)
+    thread = run_loop(listener(app))
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     stop_loop(fakes, thread)
     assert fakes.vosk.model_args == [{"model_path": "/models/vosk-small", "lang": None}]
@@ -68,13 +72,12 @@ def test_local_model_and_microphone_can_be_configured(fakes, make_app):
 
 
 def test_voice_control_is_off_by_default(fakes, app):
-    assert app.voice_control.start() is None
+    assert listener(app).start() is None
     assert THREAD_NAME not in thread_names()
 
 
 def test_voice_control_starts_when_enabled(fakes, make_app):
-    app = make_app(voice_control=True)
-    assert app.voice_control.start() is not None
+    make_app(voice_control=True)  # activating the instance starts the listener
     assert wait_until(lambda: THREAD_NAME in thread_names())
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     fakes.sd.mic.hang_up()
@@ -83,7 +86,7 @@ def test_voice_control_starts_when_enabled(fakes, make_app):
 
 def test_loop_exits_cleanly_when_vosk_is_missing(fakes, app, monkeypatch):
     monkeypatch.setitem(sys.modules, "vosk", None)  # makes `import vosk` fail
-    thread = run_loop(app.voice_control)
+    thread = run_loop(listener(app))
     thread.join(5)
     assert not thread.is_alive()  # logged the error instead of crashing the server
 
@@ -142,7 +145,7 @@ def test_commands_without_active_speech_are_harmless(fakes, app, voice_loop):
     fakes.sd.mic.say("status speech")  # still answered afterwards: the loop did not die
     assert wait_until(lambda: fakes.sd.played)
     assert voice_loop.is_alive()
-    assert app.speech.current_session is None
+    assert app.manager.runtime.speech.current_session is None
 
 
 def test_voice_commands_can_only_control_speech(fakes, voice_loop):
@@ -194,7 +197,7 @@ def test_gate_reopens_for_a_second_utterance(fakes, voice_loop, speaking, state)
 
 def test_vad_off_feeds_every_block_to_the_recognizer(fakes, make_app):
     app = make_app(vad_mode="off")
-    thread = run_loop(app.voice_control)
+    thread = run_loop(listener(app))
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     fakes.sd.mic.silence(12)
     stop_loop(fakes, thread)
@@ -204,7 +207,7 @@ def test_vad_off_feeds_every_block_to_the_recognizer(fakes, make_app):
 def test_threshold_can_be_raised(fakes, make_app):
     app = make_app(vad_threshold=5000.0)  # louder than the fake speech (~1000)
     session = begin_speech(app, fakes)
-    thread = run_loop(app.voice_control)
+    thread = run_loop(listener(app))
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     fakes.sd.mic.say("pause speech")
     stop_loop(fakes, thread)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from kokoro_mcp.config import DEFAULT_VAD_THRESHOLD, Settings
@@ -26,6 +28,8 @@ def test_values_are_read_from_the_environment():
             "KOKORO_MIC_DEVICE": "USB Mic",
             "KOKORO_VAD": "OFF",
             "KOKORO_VAD_THRESHOLD": "750",
+            "KOKORO_SHARED_INSTANCE": "0",
+            "KOKORO_IPC_DIR": "/tmp/kokoro-ipc",
         }
     )
     assert settings == Settings(
@@ -36,6 +40,8 @@ def test_values_are_read_from_the_environment():
         mic_device="USB Mic",
         vad_mode="off",
         vad_threshold=750.0,
+        shared_instance=False,
+        ipc_dir=Path("/tmp/kokoro-ipc"),
     )
 
 
@@ -53,3 +59,14 @@ def test_invalid_vad_settings_fall_back_to_defaults():
     settings = Settings.from_env({"KOKORO_VAD": "magic", "KOKORO_VAD_THRESHOLD": "loud"})
     assert settings.vad_mode == "energy"
     assert settings.vad_threshold == DEFAULT_VAD_THRESHOLD
+
+
+def test_instances_are_shared_by_default_and_the_ipc_dir_is_in_the_home_directory():
+    settings = Settings.from_env({})
+    assert settings.shared_instance
+    assert settings.resolved_ipc_dir == Path.home() / ".kokoro_mcp"
+
+
+@pytest.mark.parametrize("value", ["0", "false", "no", "off"])
+def test_shared_instance_can_be_turned_off(value):
+    assert not Settings.from_env({"KOKORO_SHARED_INSTANCE": value}).shared_instance

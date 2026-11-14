@@ -29,14 +29,22 @@ class VoiceControlListener:
         self._settings = settings
         self._handler = handler
         self._gate_factory = gate_factory
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
 
     def start(self) -> threading.Thread | None:
         """Start listening in a daemon thread if voice control is enabled."""
         if not self._settings.voice_control:
             return None
-        thread = threading.Thread(target=self.run, name=THREAD_NAME, daemon=True)
-        thread.start()
-        return thread
+        self._thread = threading.Thread(target=self.run, name=THREAD_NAME, daemon=True)
+        self._thread.start()
+        return self._thread
+
+    def stop(self) -> None:
+        """Stop listening (the loop notices within one 100 ms microphone block)."""
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(1.0)
 
     def run(self) -> None:
         """Blocking listen loop. Logs and returns if the microphone or Vosk is unavailable."""
@@ -59,7 +67,7 @@ class VoiceControlListener:
         with open_microphone(self._settings.mic_device) as mic:
             log.info("Voice control on: say %s", ", ".join(f"'{p}'" for p in VOICE_COMMANDS))
             log.info("Voice activity gate: %s", f"energy (threshold {gate.threshold:g})" if gate else "off")
-            while True:
+            while not self._stop.is_set():
                 data, _overflowed = mic.read(MIC_RATE // 10)
                 blocks, ended = gate.process(bytes(data)) if gate else ([bytes(data)], False)
                 for block in blocks:

@@ -148,6 +148,26 @@ It can do nothing else. Recognition uses [Vosk](https://alphacephei.com/vosk/) r
 - Use headphones if you can: the speakers' own output reaches the microphone and can cause missed commands.
 - The OS must allow microphone access for the process that runs the server (Windows: Settings → Privacy → Microphone; macOS: System Settings → Privacy & Security → Microphone).
 
+## Several server copies (primary and secondary)
+
+Claude Desktop starts the server more than once (one copy for chat, one for Cowork/Code sessions). To avoid duplicate speech and duplicate answers to voice commands, the copies share one backend:
+
+- The **first** copy is the **primary**: it loads the models and owns the speakers, the microphone and the voice listener.
+- Every later copy is a **secondary**: it forwards `start_speech`, `pause_speech`, `resume_speech`, `stop_speech` and `speech_status` to the primary over a private local channel (a named pipe on Windows, a Unix socket elsewhere, protected by a random key in `~/.kokoro_mcp/ipc.key`).
+- So there is one speech, one listener and one answer, whichever copy a client talks to.
+- If the primary exits, a secondary takes over on its next request (and starts the voice listener).
+- When a client closes the server, that copy stops its speech and listener and releases the channel.
+
+The log (stderr, visible in Claude Desktop's MCP log) shows the roles:
+
+```
+Instance process 9760 is the primary
+Instance process 1888 is a secondary: speech is redirected to process 9760 (primary)
+Speech redirected from process 1888 (secondary) to process 9760 (primary): start
+```
+
+The process IDs are those of the Python interpreter (on Windows the venv launcher shows up as an extra parent `python.exe`). Set `KOKORO_SHARED_INSTANCE=0` to make every copy work on its own.
+
 ## Project layout
 
 | Path | Responsibility |
@@ -160,6 +180,9 @@ It can do nothing else. Recognition uses [Vosk](https://alphacephei.com/vosk/) r
 | `kokoro_mcp/speech.py` | `SpeechSession` (play, pause, resume, stop) and `SpeechService` (owns the active session) |
 | `kokoro_mcp/audio.py` | Speaker and microphone access (`sounddevice`) |
 | `kokoro_mcp/voice_control/` | `EnergyGate` (VAD), `VoiceCommandHandler`, `StatusAnnouncer`, `VoiceControlListener` |
+| `kokoro_mcp/instance.py` | `InstanceManager`: primary/secondary election, delegation, takeover, shutdown |
+| `kokoro_mcp/runtime.py` | `PrimaryRuntime`: the components only the primary runs |
+| `kokoro_mcp/ipc.py` | Local endpoint: `PrimaryServer`, `RemoteSpeechService`, key and address handling |
 
 ## Tests
 
@@ -185,6 +208,8 @@ Set these in the `env` block of the Claude Desktop config.
 | `KOKORO_MIC_DEVICE` | system default | Microphone name or index |
 | `KOKORO_VAD` | `energy` | `energy` runs Vosk only while someone is speaking; `off` feeds it all audio |
 | `KOKORO_VAD_THRESHOLD` | `500` | Speech level (RMS, int16 scale) that opens the gate; lower it if commands are missed |
+| `KOKORO_SHARED_INSTANCE` | `1` | `0` disables primary/secondary sharing: every server copy works on its own |
+| `KOKORO_IPC_DIR` | `~/.kokoro_mcp` | Where the shared key for the local channel is stored |
 
 ## Languages
 
@@ -203,5 +228,7 @@ Claude Desktop logs: `%APPDATA%\Claude\logs\mcp-server-kokoro-tts.log` (Windows)
 | Server does not start in Claude Desktop | Check that `command` is the venv's Python (absolute path) and the paths in `args` exist |
 | No sound | Check the default output device. On Linux install `libportaudio2` |
 | Non-English text sounds wrong or errors | Install `espeak-ng` and use a voice that matches the text language |
+| Two answers to a voice command | Update to this version: only the primary instance listens. With `KOKORO_SHARED_INSTANCE=0` every copy listens |
+| `primary instance is not reachable` error | The primary exited; retry the request (a secondary takes over automatically) |
 | `Voice control stopped` in the log | `vosk` not installed, no microphone, or microphone permission denied |
 | Voice commands are missed | Use headphones, speak the phrase alone and clearly, or set `KOKORO_MIC_DEVICE` |

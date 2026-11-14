@@ -3,43 +3,49 @@
 from __future__ import annotations
 
 import logging
+import signal
 import sys
 from dataclasses import dataclass
 
 from mcp.server.mcpserver import MCPServer
 
 from kokoro_mcp.config import Settings
-from kokoro_mcp.speech import SpeechService
-from kokoro_mcp.synthesis import SpeechSynthesizer
-from kokoro_mcp.voice_control.announcer import StatusAnnouncer
-from kokoro_mcp.voice_control.commands import VoiceCommandHandler
-from kokoro_mcp.voice_control.listener import VoiceControlListener
+from kokoro_mcp.instance import InstanceManager
 from mcp_tools import register_tools
 
 
 @dataclass(frozen=True)
 class App:
     mcp: MCPServer
-    speech: SpeechService
-    voice_control: VoiceControlListener
+    manager: InstanceManager
 
 
-def build_app(settings: Settings) -> App:
-    """Create all components and register the tools (does not start anything)."""
-    synthesizer = SpeechSynthesizer(settings.device)
-    speech = SpeechService(synthesizer)
-    handler = VoiceCommandHandler(speech, StatusAnnouncer(synthesizer))
+def build_app(settings: Settings, pid: int | None = None) -> App:
+    """Create the components and register the tools (does not start anything)."""
+    manager = InstanceManager(settings, pid)
     mcp = MCPServer("kokoro-tts")
-    register_tools(mcp, speech, settings.default_voice)
-    return App(mcp=mcp, speech=speech, voice_control=VoiceControlListener(settings, handler))
+    register_tools(mcp, manager, settings.default_voice)
+    return App(mcp=mcp, manager=manager)
+
+
+def _exit_on_termination_signals() -> None:
+    """Turn SIGTERM / Ctrl+Break into a normal exit so the shutdown in main() runs."""
+    for name in ("SIGTERM", "SIGBREAK"):
+        sig = getattr(signal, name, None)
+        if sig is not None:
+            signal.signal(sig, lambda _signum, _frame: sys.exit(0))
 
 
 def main() -> None:
     # stdout is the MCP transport: all logging must go to stderr.
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    _exit_on_termination_signals()
     app = build_app(Settings.from_env())
-    app.voice_control.start()
-    app.mcp.run()  # stdio transport
+    try:
+        app.manager.activate()  # become the primary instance or join it as a secondary
+        app.mcp.run()  # stdio transport; returns when the client closes the pipe
+    finally:
+        app.manager.shutdown()  # stop speech, listener and endpoint
 
 
 if __name__ == "__main__":

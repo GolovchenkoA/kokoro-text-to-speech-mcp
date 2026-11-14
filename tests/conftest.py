@@ -20,23 +20,32 @@ def fakes(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "sounddevice", sd)
     monkeypatch.setitem(sys.modules, "kokoro", kokoro)
     monkeypatch.setitem(sys.modules, "vosk", vosk)
-    monkeypatch.chdir(tmp_path)  # lets tests assert that nothing is written to disk
-    return SimpleNamespace(sd=sd, kokoro=kokoro, vosk=vosk, tmp_path=tmp_path)
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    monkeypatch.chdir(workdir)  # lets tests assert that nothing is written to disk
+    return SimpleNamespace(sd=sd, kokoro=kokoro, vosk=vosk, tmp_path=tmp_path, workdir=workdir)
 
 
 @pytest.fixture
 def make_app(fakes):
-    """Build a fresh server app from Settings overrides; speech is stopped after the test."""
+    """Build and activate a server app from Settings overrides; it is shut down after the test.
+
+    Apps made in one test share the same IPC directory, so the first becomes the primary instance
+    and later ones become secondaries. Pass `pid=` to give an app a fake process id.
+    """
     apps = []
 
-    def _make(**settings):
-        app = build_app(Settings(**settings))
+    def _make(pid: int | None = None, activate: bool = True, **settings):
+        settings.setdefault("ipc_dir", fakes.tmp_path / "ipc")
+        app = build_app(Settings(**settings), pid)
         apps.append(app)
+        if activate:
+            app.manager.activate()
         return app
 
     yield _make
     for app in apps:
-        app.speech.shutdown()
+        app.manager.shutdown()
 
 
 @pytest.fixture
@@ -53,19 +62,21 @@ class ToolResult(SimpleNamespace):
     is_error: bool
 
 
-@pytest.fixture
-def call_tool(app):
+def call_tool_on(app, name: str, **arguments) -> ToolResult:
     """Call an MCP tool through a real in-process MCP client/server connection."""
 
-    def _call(name: str, **arguments) -> ToolResult:
-        async def run():
-            async with Client(app.mcp) as client:
-                result = await client.call_tool(name, arguments)
-            return ToolResult(text=_text(result), is_error=bool(result.is_error))
+    async def run():
+        async with Client(app.mcp) as client:
+            result = await client.call_tool(name, arguments)
+        return ToolResult(text=_text(result), is_error=bool(result.is_error))
 
-        return asyncio.run(run())
+    return asyncio.run(run())
 
-    return _call
+
+@pytest.fixture
+def call_tool(app):
+    """Call tools on the default app."""
+    return lambda name, **arguments: call_tool_on(app, name, **arguments)
 
 
 @pytest.fixture
@@ -86,8 +97,8 @@ def long_text(lines: int = 40) -> str:
 
 
 def begin_speech(app, fakes, lines: int = 40):
-    """Start a long speech on `app` and wait until audio is flowing. Returns the session."""
-    app.speech.start(long_text(lines), "af_heart", 1.0)
-    session = app.speech.current_session
+    """Start a long speech on the primary `app` and wait until audio is flowing. Returns the session."""
+    speech = app.manager.runtime.speech
+    speech.start(long_text(lines), "af_heart", 1.0)
     assert wait_until(lambda: fakes.sd.streams and fakes.sd.streams[-1].frames > 0)
-    return session
+    return speech.current_session

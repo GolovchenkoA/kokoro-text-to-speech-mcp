@@ -57,7 +57,7 @@ def test_start_speech_plays_in_memory_and_finishes(call_tool, fakes):
     assert not stream.aborted  # finished normally: buffered audio was allowed to drain
     assert stream.frames == 6 * CHUNK_FRAMES  # every generated chunk reached the speakers
     assert stream.kwargs["samplerate"] == SAMPLE_RATE
-    assert list(fakes.tmp_path.iterdir()) == []  # nothing was written to disk
+    assert list(fakes.workdir.iterdir()) == []  # nothing was written to disk
 
 
 def test_start_speech_returns_before_playback_ends(call_tool, fakes):
