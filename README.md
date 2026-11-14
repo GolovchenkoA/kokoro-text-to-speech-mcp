@@ -10,7 +10,7 @@ MCP server that gives Claude Desktop (or any MCP client) a local, offline text-t
 - `speech_status()` → `idle`, `playing`, `paused`, `finished`, `stopped` or `error`
 - `list_voices()` → voice IDs grouped by language
 
-The older `speak` (save to WAV) and `play_file` tools are disabled; their code is kept commented out in `server.py`.
+The older `speak` (save to WAV) and `play_file` tools were removed; they remain in git history (commit `3587dc0`).
 
 ## Requirements
 
