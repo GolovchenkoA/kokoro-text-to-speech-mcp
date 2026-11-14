@@ -16,7 +16,6 @@ MAX_CHARS = 20_000  # longest text accepted by one start_speech call
 DEFAULT_VOICE = "af_heart"
 DEFAULT_VAD_THRESHOLD = 500.0  # RMS on the int16 scale; speech is typically 1000+, a quiet room < 300
 
-_TRUE_VALUES = ("1", "true", "yes", "on")
 _FALSE_VALUES = ("0", "false", "no", "off")
 
 
@@ -26,7 +25,7 @@ class Settings:
 
     default_voice: str = DEFAULT_VOICE
     device: str | None = None  # "cpu", "cuda", "mps" or None for auto
-    voice_control: bool = False  # microphone commands (KOKORO_WAKEWORD)
+    is_voice_control_enabled: bool = True  # microphone commands; KOKORO_VOICE_CONTROL_ENABLED=0 turns them off
     vosk_model: str | None = None  # local Vosk model folder; None downloads the small English model
     mic_device: str | None = None
     vad_mode: str = "energy"  # "energy" or "off"
@@ -58,7 +57,7 @@ class Settings:
         return cls(
             default_voice=env.get("KOKORO_DEFAULT_VOICE", DEFAULT_VOICE),
             device=env.get("KOKORO_DEVICE") or None,
-            voice_control=env.get("KOKORO_WAKEWORD", "").lower() in _TRUE_VALUES,
+            is_voice_control_enabled=env.get("KOKORO_VOICE_CONTROL_ENABLED", "1").lower() not in _FALSE_VALUES,
             vosk_model=env.get("KOKORO_VOSK_MODEL") or None,
             mic_device=env.get("KOKORO_MIC_DEVICE") or None,
             vad_mode=vad_mode,

@@ -13,7 +13,7 @@ def test_defaults():
     settings = Settings.from_env({})
     assert settings == Settings()
     assert settings.default_voice == "af_heart"
-    assert not settings.voice_control
+    assert settings.is_voice_control_enabled  # on by default
     assert settings.vad_mode == "energy"
     assert settings.vad_threshold == DEFAULT_VAD_THRESHOLD
 
@@ -23,7 +23,7 @@ def test_values_are_read_from_the_environment():
         {
             "KOKORO_DEFAULT_VOICE": "bm_george",
             "KOKORO_DEVICE": "cpu",
-            "KOKORO_WAKEWORD": "1",
+            "KOKORO_VOICE_CONTROL_ENABLED": "0",
             "KOKORO_VOSK_MODEL": "/models/vosk",
             "KOKORO_MIC_DEVICE": "USB Mic",
             "KOKORO_VAD": "OFF",
@@ -35,7 +35,7 @@ def test_values_are_read_from_the_environment():
     assert settings == Settings(
         default_voice="bm_george",
         device="cpu",
-        voice_control=True,
+        is_voice_control_enabled=False,
         vosk_model="/models/vosk",
         mic_device="USB Mic",
         vad_mode="off",
@@ -45,14 +45,19 @@ def test_values_are_read_from_the_environment():
     )
 
 
-@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on"])
-def test_voice_control_truthy_values(value):
-    assert Settings.from_env({"KOKORO_WAKEWORD": value}).voice_control
+def test_voice_control_is_on_by_default():
+    assert Settings().is_voice_control_enabled
+    assert Settings.from_env({}).is_voice_control_enabled  # KOKORO_VOICE_CONTROL_ENABLED not set
 
 
-@pytest.mark.parametrize("value", ["", "0", "false", "no", "off", "enable"])
-def test_voice_control_other_values_are_off(value):
-    assert not Settings.from_env({"KOKORO_WAKEWORD": value}).voice_control
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on", "", "enable"])
+def test_voice_control_stays_on_unless_switched_off(value):
+    assert Settings.from_env({"KOKORO_VOICE_CONTROL_ENABLED": value}).is_voice_control_enabled
+
+
+@pytest.mark.parametrize("value", ["0", "false", "FALSE", "no", "off", "OFF"])
+def test_voice_control_can_be_switched_off(value):
+    assert not Settings.from_env({"KOKORO_VOICE_CONTROL_ENABLED": value}).is_voice_control_enabled
 
 
 def test_invalid_vad_settings_fall_back_to_defaults():

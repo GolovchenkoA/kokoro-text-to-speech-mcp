@@ -4,7 +4,7 @@
 microphone → energy VAD gate → Vosk (4-phrase grammar) → exact match → fixed action
 ```
 
-1. **Microphone**: 16 kHz mono, 100 ms blocks (`KOKORO_WAKEWORD=1` enables it).
+1. **Microphone**: 16 kHz mono, 100 ms blocks (on by default; `KOKORO_VOICE_CONTROL_ENABLED=0` turns it off).
 2. **Energy VAD gate**: RMS above a threshold opens the gate. A 300 ms pre-roll and a 500 ms hangover keep the phrase intact.
 3. **Vosk**: runs only while the gate is open, restricted to `pause speech`, `continue speech`, `stop speech`, `status speech` and `[unk]`.
 4. **Exact match**: the command runs only if the whole utterance equals one phrase.

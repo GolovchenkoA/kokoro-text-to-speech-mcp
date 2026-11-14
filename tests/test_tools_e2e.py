@@ -7,7 +7,8 @@ import time
 import pytest
 
 from kokoro_mcp.config import MAX_CHARS, SAMPLE_RATE
-from tests.conftest import long_text
+from mcp_tools import speech_started_message
+from tests.conftest import call_tool_on, long_text
 from tests.fakes import CHUNK_FRAMES, wait_until
 
 EXPECTED_TOOLS = {"start_speech", "pause_speech", "resume_speech", "stop_speech", "speech_status", "list_voices"}
@@ -105,6 +106,35 @@ def test_list_voices_groups_by_language(call_tool):
     for language in ("American English", "British English", "Mandarin Chinese"):
         assert language in result.text
     assert "af_heart" in result.text
+
+
+# -- start_speech result: how to control the speech ----------------------------------------
+def test_start_speech_result_explains_how_to_pause_continue_and_stop(call_tool):
+    text = call_tool("start_speech", text=long_text(40)).text
+    assert text.startswith("Speech started (")
+    for tool_name in ("pause_speech", "resume_speech", "stop_speech", "speech_status"):
+        assert tool_name in text
+    assert "pause the speech" in text and "continue the speech" in text and "stop the speech" in text
+    assert "Voice control" not in text  # voice control is off in this app: do not advertise it
+
+
+def test_start_speech_result_lists_voice_commands_when_voice_control_is_on(make_app, fakes):
+    app = make_app(is_voice_control_enabled=True)
+    assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
+    text = call_tool_on(app, "start_speech", text="Hello").text
+    fakes.sd.mic.hang_up()
+    assert 'Voice control is on: say "pause speech", "continue speech", "stop speech", "status speech".' in text
+
+
+def test_started_message_format():
+    assert speech_started_message(120, "af_heart", is_voice_control_enabled=False).splitlines() == [
+        "Speech started (120 characters, voice af_heart). It plays in the background.",
+        "Control it:",
+        "- pause: ask me to pause the speech (tool pause_speech)",
+        "- continue: ask me to continue the speech (tool resume_speech)",
+        "- stop: ask me to stop the speech (tool stop_speech)",
+        "- state: speech_status",
+    ]
 
 
 # -- start / finish ----------------------------------------------------------------------------

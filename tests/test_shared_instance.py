@@ -130,8 +130,8 @@ def test_redirected_speech_is_logged_with_both_process_ids(make_app, caplog):
 
 # -- one voice listener --------------------------------------------------------------------------
 def test_only_the_primary_listens_and_answers(make_app, fakes):
-    make_app(pid=PRIMARY_PID, voice_control=True)
-    secondary = make_app(pid=SECONDARY_PID, voice_control=True)
+    make_app(pid=PRIMARY_PID, is_voice_control_enabled=True)
+    secondary = make_app(pid=SECONDARY_PID, is_voice_control_enabled=True)
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     assert listener_threads() == 1  # not one per instance
     assert secondary.manager.runtime is None
@@ -144,8 +144,8 @@ def test_only_the_primary_listens_and_answers(make_app, fakes):
 
 
 def test_voice_commands_control_speech_started_through_a_secondary(make_app, fakes):
-    primary = make_app(pid=PRIMARY_PID, voice_control=True)
-    secondary = make_app(pid=SECONDARY_PID, voice_control=True)
+    primary = make_app(pid=PRIMARY_PID, is_voice_control_enabled=True)
+    secondary = make_app(pid=SECONDARY_PID, is_voice_control_enabled=True)
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     call_tool_on(secondary, "start_speech", text=long_text(40))
     assert wait_until(lambda: fakes.sd.streams and fakes.sd.streams[0].frames > 0)
@@ -180,8 +180,8 @@ def test_the_new_primary_serves_later_instances(pair, make_app, fakes):
 
 
 def test_takeover_starts_voice_control_in_the_new_primary(make_app, fakes):
-    primary = make_app(pid=PRIMARY_PID, voice_control=True)
-    secondary = make_app(pid=SECONDARY_PID, voice_control=True)
+    primary = make_app(pid=PRIMARY_PID, is_voice_control_enabled=True)
+    secondary = make_app(pid=SECONDARY_PID, is_voice_control_enabled=True)
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     fakes.sd.mic.hang_up()  # the old listener ends with its microphone
     primary.manager.shutdown()
@@ -194,7 +194,7 @@ def test_takeover_starts_voice_control_in_the_new_primary(make_app, fakes):
 
 
 def test_shutdown_stops_speech_listener_and_endpoint(make_app, fakes):
-    app = make_app(pid=PRIMARY_PID, voice_control=True)
+    app = make_app(pid=PRIMARY_PID, is_voice_control_enabled=True)
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     begin_speech(app, fakes)
     fakes.sd.mic.hang_up()

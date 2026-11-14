@@ -8,10 +8,11 @@ import threading
 
 import pytest
 
-from kokoro_mcp.config import MIC_RATE, SAMPLE_RATE
+from kokoro_mcp.config import MIC_RATE, SAMPLE_RATE, Settings
 from kokoro_mcp.voice_control.commands import VOICE_COMMANDS
 from kokoro_mcp.voice_control.listener import THREAD_NAME
 from kokoro_mcp.voice_control.vad import VAD_HANGOVER_BLOCKS, VAD_PREROLL_BLOCKS
+from server import build_app
 from tests.conftest import begin_speech
 from tests.fakes import thread_names, wait_until
 
@@ -71,13 +72,33 @@ def test_local_model_and_microphone_can_be_configured(fakes, make_app):
     assert fakes.sd.mic_kwargs["device"] == "USB Mic"
 
 
-def test_voice_control_is_off_by_default(fakes, app):
-    assert listener(app).start() is None
-    assert THREAD_NAME not in thread_names()
+def test_voice_control_listens_by_default(fakes):
+    """With no KOKORO_VOICE_CONTROL_ENABLED set, an activated instance starts the microphone listener."""
+    app = build_app(Settings.from_env({"KOKORO_IPC_DIR": str(fakes.tmp_path / "ipc")}))
+    try:
+        app.manager.activate()
+        assert wait_until(lambda: THREAD_NAME in thread_names())
+        assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
+        fakes.sd.mic.hang_up()
+    finally:
+        app.manager.shutdown()
+
+
+def test_voice_control_can_be_turned_off(fakes):
+    """KOKORO_VOICE_CONTROL_ENABLED=0: no listener thread and the microphone is never opened."""
+    env = {"KOKORO_IPC_DIR": str(fakes.tmp_path / "ipc"), "KOKORO_VOICE_CONTROL_ENABLED": "0"}
+    app = build_app(Settings.from_env(env))
+    try:
+        app.manager.activate()
+        assert listener(app).start() is None
+        assert THREAD_NAME not in thread_names()
+        assert fakes.sd.mic_kwargs is None
+    finally:
+        app.manager.shutdown()
 
 
 def test_voice_control_starts_when_enabled(fakes, make_app):
-    make_app(voice_control=True)  # activating the instance starts the listener
+    make_app(is_voice_control_enabled=True)  # activating the instance starts the listener
     assert wait_until(lambda: THREAD_NAME in thread_names())
     assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
     fakes.sd.mic.hang_up()

@@ -4,7 +4,7 @@ MCP server that gives Claude Desktop (or any MCP client) a local, offline text-t
 
 ## Tools
 
-- `start_speech(text, voice="af_heart", speed=1.0)` → speaks the text on the local speakers and returns immediately. Text only (no file paths or URLs); audio is generated and played entirely in memory via `sounddevice`, nothing is written to disk. Starting a new speech stops the current one
+- `start_speech(text, voice="af_heart", speed=1.0)` → speaks the text on the local speakers and returns immediately. Text only (no file paths or URLs); audio is generated and played entirely in memory via `sounddevice`, nothing is written to disk. Starting a new speech stops the current one. The result also tells how to pause, continue and stop it (and lists the voice commands when voice control is on)
 - `pause_speech()` / `resume_speech()` → hold and continue the current speech (takes effect within ~0.1 s)
 - `stop_speech()` → interrupt the current speech and discard the rest
 - `speech_status()` → `idle`, `playing`, `paused`, `finished`, `stopped` or `error`
@@ -20,12 +20,12 @@ The older `speak` (save to WAV) and `play_file` tools were removed; they remain 
 | Needed | Notes |
 |---|---|
 | Python **3.14** (or 3.12) | `.python-version` pins 3.14. 3.13 is not supported by `kokoro`; 3.12 works without the workaround flag below |
-| ~3 GB free disk | PyTorch plus packages (~2 GB), Kokoro model (~330 MB), optional Vosk model (~40 MB) |
+| ~3 GB free disk | PyTorch plus packages (~2 GB), Kokoro model (~330 MB), Vosk model for voice control (~40 MB) |
 | Internet on first run | Kokoro model is downloaded from Hugging Face on the first `start_speech`; later runs are fully offline |
 | A speaker / output device | Audio plays on the machine that runs the server |
 | `espeak-ng` | System package, see step 3 |
 | Linux only: PortAudio | `sudo apt install libportaudio2` (bundled on Windows/macOS) |
-| Optional: a microphone | Only for voice control |
+| A microphone | For voice control, which is on by default. The server works without one (the listener just logs an error) |
 
 No GPU is needed; CPU is fast enough. No API keys.
 
@@ -97,8 +97,7 @@ Use **absolute paths** to the venv's Python and to `server.py`. Do not rely on `
       "command": "C:\\path\\to\\kokoro-text-to-speech-mcp\\.venv\\Scripts\\python.exe",
       "args": ["C:\\path\\to\\kokoro-text-to-speech-mcp\\server.py"],
       "env": {
-        "KOKORO_DEFAULT_VOICE": "af_heart",
-        "KOKORO_WAKEWORD": "1"
+        "KOKORO_DEFAULT_VOICE": "af_heart"
       }
     }
   }
@@ -114,15 +113,14 @@ Use **absolute paths** to the venv's Python and to `server.py`. Do not rely on `
       "command": "/absolute/path/to/kokoro-text-to-speech-mcp/.venv/bin/python",
       "args": ["/absolute/path/to/kokoro-text-to-speech-mcp/server.py"],
       "env": {
-        "KOKORO_DEFAULT_VOICE": "af_heart",
-        "KOKORO_WAKEWORD": "1"
+        "KOKORO_DEFAULT_VOICE": "af_heart"
       }
     }
   }
 }
 ```
 
-Leave out `"KOKORO_WAKEWORD": "1"` if you do not want microphone voice control. If you already have other servers under `mcpServers`, add only the `"kokoro-tts"` entry.
+Voice control is on by default; add `"KOKORO_VOICE_CONTROL_ENABLED": "0"` to `env` to turn it off. If you already have other servers under `mcpServers`, add only the `"kokoro-tts"` entry.
 
 ### 6. Restart and try it
 
@@ -132,9 +130,9 @@ Fully quit Claude Desktop (tray/menu bar icon → Quit, not just close the windo
 
 The first request is slow: it downloads and loads the Kokoro model (~330 MB). Then try "pause", "continue" and "stop".
 
-## Voice control (optional)
+## Voice control
 
-Set `KOKORO_WAKEWORD=1` and the server listens on the microphone for exactly four phrases:
+By default the server listens on the microphone for exactly four phrases (set `KOKORO_VOICE_CONTROL_ENABLED=0` to turn it off):
 
 | Say | Does |
 |---|---|
@@ -143,7 +141,7 @@ Set `KOKORO_WAKEWORD=1` and the server listens on the microphone for exactly fou
 | "stop speech" | `stop_speech` |
 | "status speech" | says aloud whether speech is playing, paused, finished, stopped or idle |
 
-It can do nothing else. Recognition uses [Vosk](https://alphacephei.com/vosk/) restricted to those phrases and acts only when the whole utterance is exactly one of them. Audio is processed in memory and never stored or sent anywhere. Off by default. English only.
+It can do nothing else. Recognition uses [Vosk](https://alphacephei.com/vosk/) restricted to those phrases and acts only when the whole utterance is exactly one of them. Audio is processed in memory and never stored or sent anywhere. On by default. English only. Without a microphone or `vosk`, the listener logs an error and the server keeps working without voice control.
 
 - A voice activity gate (`KOKORO_VAD`) keeps Vosk idle until someone speaks. Flow details: [docs/this-program-STT-flow.md](docs/this-program-STT-flow.md).
 - First use downloads the small English model (~40 MB) to `~/.cache/vosk`; set `KOKORO_VOSK_MODEL` to a local model folder to avoid the download (e.g. for offline machines).
@@ -206,7 +204,7 @@ Set these in the `env` block of the Claude Desktop config.
 |---|---|---|
 | `KOKORO_DEFAULT_VOICE` | `af_heart` | Voice used when none is given |
 | `KOKORO_DEVICE` | auto | `cpu`, `cuda` or `mps` |
-| `KOKORO_WAKEWORD` | off | `1` enables microphone voice control |
+| `KOKORO_VOICE_CONTROL_ENABLED` | on | `0` (or `false`, `no`, `off`) turns microphone voice control off |
 | `KOKORO_VOSK_MODEL` | auto-download | Path to a local Vosk model folder |
 | `KOKORO_MIC_DEVICE` | system default | Microphone name or index |
 | `KOKORO_VAD` | `energy` | `energy` runs Vosk only while someone is speaking; `off` feeds it all audio |

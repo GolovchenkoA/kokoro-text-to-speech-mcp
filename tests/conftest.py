@@ -31,12 +31,14 @@ def make_app(fakes):
     """Build and activate a server app from Settings overrides; it is shut down after the test.
 
     Apps made in one test share the same IPC directory, so the first becomes the primary instance
-    and later ones become secondaries. Pass `pid=` to give an app a fake process id.
+    and later ones become secondaries. Pass `pid=` to give an app a fake process id. Voice control
+    (on by default in Settings) is off here unless a test passes `is_voice_control_enabled=True`.
     """
     apps = []
 
     def _make(pid: int | None = None, activate: bool = True, **settings):
         settings.setdefault("ipc_dir", fakes.tmp_path / "ipc")
+        settings.setdefault("is_voice_control_enabled", False)
         app = build_app(Settings(**settings), pid)
         apps.append(app)
         if activate:

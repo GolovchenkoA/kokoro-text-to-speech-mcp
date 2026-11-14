@@ -12,6 +12,7 @@ from pydantic import Field
 
 from kokoro_mcp.ipc import PrimaryUnavailable
 from kokoro_mcp.speech import InvalidSpeechRequest, SpeechController
+from kokoro_mcp.voice_control.commands import VOICE_COMMANDS
 from kokoro_mcp.voices import voices_by_language
 
 
@@ -38,6 +39,22 @@ SPEAK_MESSAGES_PROMPT = (
 )
 
 
+def speech_started_message(characters: int, voice: str, is_voice_control_enabled: bool) -> str:
+    """Result of start_speech: confirms the start and says how to pause, continue and stop."""
+    lines = [
+        f"Speech started ({characters} characters, voice {voice}). It plays in the background.",
+        "Control it:",
+        "- pause: ask me to pause the speech (tool pause_speech)",
+        "- continue: ask me to continue the speech (tool resume_speech)",
+        "- stop: ask me to stop the speech (tool stop_speech)",
+        "- state: speech_status",
+    ]
+    if is_voice_control_enabled:
+        phrases = ", ".join(f'"{phrase}"' for phrase in VOICE_COMMANDS)
+        lines.append(f"Voice control is on: say {phrases}.")
+    return "\n".join(lines)
+
+
 @contextmanager
 def _tool_errors() -> Iterator[None]:
     """Turn expected failures into ToolError (not ValueError/RuntimeError) so the model sees the reason."""
@@ -47,7 +64,9 @@ def _tool_errors() -> Iterator[None]:
         raise ToolError(str(exc)) from exc
 
 
-def register_tools(mcp: MCPServer, speech: SpeechController, default_voice: str) -> None:
+def register_tools(
+    mcp: MCPServer, speech: SpeechController, default_voice: str, is_voice_control_enabled: bool
+) -> None:
     """Register all tools on `mcp`, bound to the given speech backend."""
 
     @mcp.tool()
@@ -57,6 +76,8 @@ def register_tools(mcp: MCPServer, speech: SpeechController, default_voice: str)
         The speech runs in the background and can be controlled with pause_speech, resume_speech
         and stop_speech; check progress with speech_status. Audio is generated and played entirely
         in memory (nothing is written to disk). Starting a new speech stops any speech in progress.
+
+        The result confirms the start and tells how to pause, continue and stop the speech.
 
         Pass the text exactly as the user gave it or as it was written in the message to be read
         aloud: verbatim, character for character. Never summarize, shorten, translate, rephrase,
@@ -73,10 +94,7 @@ def register_tools(mcp: MCPServer, speech: SpeechController, default_voice: str)
         """
         with _tool_errors():
             characters = speech.start(text, voice, speed)
-        return (
-            f"Speech started ({characters} characters, voice {voice}). "
-            "Use pause_speech / resume_speech / stop_speech to control it."
-        )
+        return speech_started_message(characters, voice, is_voice_control_enabled)
 
     @mcp.prompt(
         name="speak-last-reply",

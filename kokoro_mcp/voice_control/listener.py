@@ -34,7 +34,7 @@ class VoiceControlListener:
 
     def start(self) -> threading.Thread | None:
         """Start listening in a daemon thread if voice control is enabled."""
-        if not self._settings.voice_control:
+        if not self._settings.is_voice_control_enabled:
             return None
         self._thread = threading.Thread(target=self.run, name=THREAD_NAME, daemon=True)
         self._thread.start()

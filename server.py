@@ -24,7 +24,7 @@ def build_app(settings: Settings, pid: int | None = None) -> App:
     """Create the components and register the tools (does not start anything)."""
     manager = InstanceManager(settings, pid)
     mcp = MCPServer("kokoro-tts")
-    register_tools(mcp, manager, settings.default_voice)
+    register_tools(mcp, manager, settings.default_voice, settings.is_voice_control_enabled)
     return App(mcp=mcp, manager=manager)
 
 
