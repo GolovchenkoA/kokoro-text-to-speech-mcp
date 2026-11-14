@@ -147,6 +147,17 @@ It can do nothing else. Recognition uses [Vosk](https://alphacephei.com/vosk/) r
 - Use headphones if you can: the speakers' own output reaches the microphone and can cause missed commands.
 - The OS must allow microphone access for the process that runs the server (Windows: Settings → Privacy → Microphone; macOS: System Settings → Privacy & Security → Microphone).
 
+## Tests
+
+End-to-end tests run a real in-process MCP client against the server, with the audio device, Kokoro and Vosk replaced by fakes (no model download, speakers or microphone needed):
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
+
+`tests/test_tools_e2e.py` covers the tools (start, pause, resume, stop, status, validation, errors) and `tests/test_voice_control.py` covers the microphone commands.
+
 ## Configuration (env vars)
 
 Set these in the `env` block of the Claude Desktop config.

@@ -18,6 +18,7 @@ import threading
 
 import numpy as np
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 # stdout is the MCP transport — all logging must go to stderr.
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -225,11 +226,11 @@ def start_speech(text: str, voice: str = DEFAULT_VOICE, speed: float = 1.0) -> s
     global _session
     text = text.strip()
     if not text:
-        raise ValueError("text is empty")
+        raise ToolError("text is empty")
     if len(text) > MAX_CHARS:
-        raise ValueError(f"text is too long ({len(text)} chars, max {MAX_CHARS})")
+        raise ToolError(f"text is too long ({len(text)} chars, max {MAX_CHARS})")
     if voice[:1].lower() not in LANGUAGES:
-        raise ValueError(f"unknown voice '{voice}'. Call list_voices for valid IDs.")
+        raise ToolError(f"unknown voice '{voice}'. Call list_voices for valid IDs.")
     speed = min(max(speed, 0.5), 2.0)
 
     with _session_lock:
