@@ -148,6 +148,19 @@ It can do nothing else. Recognition uses [Vosk](https://alphacephei.com/vosk/) r
 - Use headphones if you can: the speakers' own output reaches the microphone and can cause missed commands.
 - The OS must allow microphone access for the process that runs the server (Windows: Settings → Privacy → Microphone; macOS: System Settings → Privacy & Security → Microphone).
 
+## Project layout
+
+| Path | Responsibility |
+|---|---|
+| `server.py` | Entry point: builds the components, registers the tools, runs the server |
+| `mcp_tools.py` | The `@mcp.tool()` definitions (thin adapters over `SpeechService`) |
+| `kokoro_mcp/config.py` | Constants and `Settings` (environment variables) |
+| `kokoro_mcp/voices.py` | Language and voice catalogue |
+| `kokoro_mcp/synthesis.py` | `SpeechSynthesizer`: text to audio chunks with Kokoro |
+| `kokoro_mcp/speech.py` | `SpeechSession` (play, pause, resume, stop) and `SpeechService` (owns the active session) |
+| `kokoro_mcp/audio.py` | Speaker and microphone access (`sounddevice`) |
+| `kokoro_mcp/voice_control/` | `EnergyGate` (VAD), `VoiceCommandHandler`, `StatusAnnouncer`, `VoiceControlListener` |
+
 ## Tests
 
 End-to-end tests run a real in-process MCP client against the server, with the audio device, Kokoro and Vosk replaced by fakes (no model download, speakers or microphone needed):

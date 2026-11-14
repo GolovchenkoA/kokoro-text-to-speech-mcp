@@ -1,0 +1,58 @@
+"""Constants and environment-driven settings."""
+
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
+
+SAMPLE_RATE = 24_000  # Kokoro output sample rate
+MIC_RATE = 16_000  # microphone sample rate used for voice control
+MAX_CHARS = 20_000  # longest text accepted by one start_speech call
+DEFAULT_VOICE = "af_heart"
+DEFAULT_VAD_THRESHOLD = 500.0  # RMS on the int16 scale; speech is typically 1000+, a quiet room < 300
+
+_TRUE_VALUES = ("1", "true", "yes", "on")
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Runtime configuration. Build it with `Settings.from_env()` or pass the fields directly."""
+
+    default_voice: str = DEFAULT_VOICE
+    device: str | None = None  # "cpu", "cuda", "mps" or None for auto
+    voice_control: bool = False  # microphone commands (KOKORO_WAKEWORD)
+    vosk_model: str | None = None  # local Vosk model folder; None downloads the small English model
+    mic_device: str | None = None
+    vad_mode: str = "energy"  # "energy" or "off"
+    vad_threshold: float = DEFAULT_VAD_THRESHOLD
+
+    @classmethod
+    def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
+        env = os.environ if environ is None else environ
+
+        vad_mode = env.get("KOKORO_VAD", "energy").strip().lower()
+        if vad_mode not in ("energy", "off"):
+            log.warning("Unknown KOKORO_VAD=%r, using 'energy'", vad_mode)
+            vad_mode = "energy"
+
+        vad_threshold = DEFAULT_VAD_THRESHOLD
+        raw_threshold = env.get("KOKORO_VAD_THRESHOLD")
+        if raw_threshold:
+            try:
+                vad_threshold = float(raw_threshold)
+            except ValueError:
+                log.warning("Invalid KOKORO_VAD_THRESHOLD=%r, using %s", raw_threshold, DEFAULT_VAD_THRESHOLD)
+
+        return cls(
+            default_voice=env.get("KOKORO_DEFAULT_VOICE", DEFAULT_VOICE),
+            device=env.get("KOKORO_DEVICE") or None,
+            voice_control=env.get("KOKORO_WAKEWORD", "").lower() in _TRUE_VALUES,
+            vosk_model=env.get("KOKORO_VOSK_MODEL") or None,
+            mic_device=env.get("KOKORO_MIC_DEVICE") or None,
+            vad_mode=vad_mode,
+            vad_threshold=vad_threshold,
+        )

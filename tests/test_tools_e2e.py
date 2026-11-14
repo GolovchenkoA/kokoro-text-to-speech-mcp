@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-import server
+from kokoro_mcp.config import MAX_CHARS, SAMPLE_RATE
 from tests.conftest import long_text
 from tests.fakes import CHUNK_FRAMES, wait_until
 
@@ -56,7 +56,7 @@ def test_start_speech_plays_in_memory_and_finishes(call_tool, fakes):
     assert stream.started and stream.stopped and stream.closed
     assert not stream.aborted  # finished normally: buffered audio was allowed to drain
     assert stream.frames == 6 * CHUNK_FRAMES  # every generated chunk reached the speakers
-    assert stream.kwargs["samplerate"] == server.SAMPLE_RATE
+    assert stream.kwargs["samplerate"] == SAMPLE_RATE
     assert list(fakes.tmp_path.iterdir()) == []  # nothing was written to disk
 
 
@@ -168,7 +168,7 @@ def test_unknown_voice_is_rejected(call_tool):
 
 
 def test_too_long_text_is_rejected(call_tool):
-    result = call_tool("start_speech", text="a" * (server.MAX_CHARS + 1))
+    result = call_tool("start_speech", text="a" * (MAX_CHARS + 1))
     assert result.is_error and "too long" in result.text
 
 
