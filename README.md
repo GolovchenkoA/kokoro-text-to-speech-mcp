@@ -10,6 +10,9 @@ MCP server that gives Claude Desktop (or any MCP client) a local, offline text-t
 - `speech_status()` → `idle`, `playing`, `paused`, `finished`, `stopped` or `error`
 - `list_voices()` → voice IDs grouped by language
 
+Prompt:
+- `speak-last-reply` → pick it from the prompt/slash-command menu to have Claude read its previous answer aloud. It instructs the model to call `start_speech` once with the previous assistant message unchanged (no summary, rewording or commentary). The model follows this instruction; the server cannot read the previous message itself, so the spoken text is only as exact as the model's copy.
+
 The older `speak` (save to WAV) and `play_file` tools were removed; they remain in git history (commit `3587dc0`).
 
 ## Requirements

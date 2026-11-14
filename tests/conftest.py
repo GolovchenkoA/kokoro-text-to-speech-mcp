@@ -91,6 +91,34 @@ def list_tools(app):
     return _list
 
 
+@pytest.fixture
+def list_prompts(app):
+    def _list():
+        async def run():
+            async with Client(app.mcp) as client:
+                return (await client.list_prompts()).prompts
+
+        return asyncio.run(run())
+
+    return _list
+
+
+@pytest.fixture
+def get_prompt_text(app):
+    """Text of the (single) message a prompt returns."""
+
+    def _get(name: str) -> str:
+        async def run():
+            async with Client(app.mcp) as client:
+                return await client.get_prompt(name)
+
+        messages = asyncio.run(run()).messages
+        assert len(messages) == 1 and messages[0].role == "user"
+        return messages[0].content.text
+
+    return _get
+
+
 def long_text(lines: int = 40) -> str:
     """Text that produces `lines` audio chunks (~0.5 s each) with the fake Kokoro."""
     return "\n".join(f"Sentence number {i}." for i in range(lines))

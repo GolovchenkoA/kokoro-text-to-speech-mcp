@@ -13,6 +13,16 @@ from kokoro_mcp.speech import InvalidSpeechRequest, SpeechController
 from kokoro_mcp.voices import voices_by_language
 
 
+SPEAK_LAST_REPLY_PROMPT = (
+    "Take your previous assistant message, exactly as written, character for character, and call "
+    "the `start_speech` tool once with it as the `text` argument. "
+    "Do not summarize, shorten, translate, rephrase, reformat or add anything to it. "
+    "Do not write any commentary, greeting or confirmation before or after the call: your only "
+    "action is the tool call. "
+    "If there is no previous assistant message, say so instead of calling the tool."
+)
+
+
 @contextmanager
 def _tool_errors() -> Iterator[None]:
     """Turn expected failures into ToolError (not ValueError/RuntimeError) so the model sees the reason."""
@@ -33,8 +43,13 @@ def register_tools(mcp: MCPServer, speech: SpeechController, default_voice: str)
         and stop_speech; check progress with speech_status. Audio is generated and played entirely
         in memory (nothing is written to disk). Starting a new speech stops any speech in progress.
 
+        Pass the text exactly as the user gave it or as it was written in the message to be read
+        aloud: verbatim, character for character. Never summarize, shorten, translate, rephrase,
+        reformat or add to it. To read your previous answer aloud, send that whole answer unchanged.
+
         Args:
-            text: The text to speak (plain text only, not a file path or URL).
+            text: The text to speak, exactly as it should be heard (plain text only, not a file
+                path or URL).
             voice: Kokoro voice ID, e.g. "af_heart", "bm_george", "ff_siwis". The first letter
                 selects the language (see list_voices).
             speed: Speaking rate, 0.5-2.0 (1.0 = normal).
@@ -45,6 +60,10 @@ def register_tools(mcp: MCPServer, speech: SpeechController, default_voice: str)
             f"Speech started ({characters} characters, voice {voice}). "
             "Use pause_speech / resume_speech / stop_speech to control it."
         )
+
+    @mcp.prompt(name="speak-last-reply", description="Speak your previous answer aloud, unchanged")
+    def speak_last_reply() -> str:
+        return SPEAK_LAST_REPLY_PROMPT
 
     @mcp.tool()
     def pause_speech() -> str:

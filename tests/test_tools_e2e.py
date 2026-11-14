@@ -33,6 +33,30 @@ def test_start_speech_accepts_text_only(list_tools):
     assert tool.input_schema["required"] == ["text"]
 
 
+# -- speak-last-reply prompt -----------------------------------------------------------------
+def test_speak_last_reply_prompt_is_listed(list_prompts):
+    prompts = {p.name: p for p in list_prompts()}
+    assert set(prompts) == {"speak-last-reply"}
+    assert "previous answer" in prompts["speak-last-reply"].description
+
+
+def test_prompt_tells_the_model_to_send_the_previous_reply_unchanged(get_prompt_text):
+    text = get_prompt_text("speak-last-reply")
+    assert "`start_speech`" in text  # names the tool to call
+    assert "previous assistant message" in text
+    assert "exactly as written" in text and "character for character" in text
+    assert "Do not summarize" in text and "rephrase" in text and "add anything" in text
+    assert "only action is the tool call" in text  # no commentary around the call
+    assert "no previous assistant message" in text  # nothing to speak: do not call the tool
+
+
+def test_tool_description_requires_verbatim_text(list_tools):
+    tool = next(t for t in list_tools() if t.name == "start_speech")
+    assert "verbatim" in tool.description
+    assert "Never summarize" in tool.description
+    assert "previous answer" in tool.description
+
+
 def test_list_voices_groups_by_language(call_tool):
     result = call_tool("list_voices")
     assert not result.is_error
