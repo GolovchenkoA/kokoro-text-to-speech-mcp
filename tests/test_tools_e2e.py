@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from kokoro_mcp.config import MAX_CHARS, SAMPLE_RATE
 from tests.conftest import long_text
 from tests.fakes import CHUNK_FRAMES, wait_until
@@ -34,27 +36,67 @@ def test_start_speech_accepts_text_only(list_tools):
 
 
 # -- speak-last-reply prompt -----------------------------------------------------------------
-def test_speak_last_reply_prompt_is_listed(list_prompts):
+def test_speak_last_reply_prompt_is_listed_with_a_messages_argument(list_prompts):
     prompts = {p.name: p for p in list_prompts()}
     assert set(prompts) == {"speak-last-reply"}
-    assert "previous answer" in prompts["speak-last-reply"].description
+    prompt = prompts["speak-last-reply"]
+    assert "previous answer" in prompt.description
+    assert [(a.name, a.required) for a in prompt.arguments] == [("messages", False)]
+    assert "last 5 messages" in prompt.arguments[0].description
 
 
-def test_prompt_tells_the_model_to_send_the_previous_reply_unchanged(get_prompt_text):
+def test_by_default_only_the_last_message_is_read(get_prompt_text):
     text = get_prompt_text("speak-last-reply")
-    assert "`start_speech`" in text  # names the tool to call
-    assert "previous assistant message" in text
+    assert '"the last message"' in text
+    assert "The last message is your previous assistant message" in text
+
+
+@pytest.mark.parametrize("description", ["last 5 messages", "last fifth messages", "the last three"])
+def test_the_requested_range_is_passed_to_the_model(get_prompt_text, description):
+    text = get_prompt_text("speak-last-reply", messages=description)
+    assert text.startswith(f'Read aloud this part of the conversation: "{description}".')
+
+
+def test_blank_messages_argument_falls_back_to_the_default(get_prompt_text):
+    assert '"the last message"' in get_prompt_text("speak-last-reply", messages="   ")
+
+
+def test_prompt_tells_the_model_to_send_messages_unchanged_in_one_call(get_prompt_text):
+    text = get_prompt_text("speak-last-reply", messages="last 5 messages")
+    assert "`start_speech`" in text and "once" in text  # one call: a second call would cut the first off
     assert "exactly as written" in text and "character for character" in text
-    assert "Do not summarize" in text and "rephrase" in text and "add anything" in text
+    assert "do not summarize" in text and "rephrase" in text and "add anything" in text
+    assert "chronological order, oldest first" in text
     assert "only action is the tool call" in text  # no commentary around the call
-    assert "no previous assistant message" in text  # nothing to speak: do not call the tool
+    assert "no such messages" in text  # nothing to speak: do not call the tool
 
 
-def test_tool_description_requires_verbatim_text(list_tools):
+def test_prompt_defines_what_a_message_is(get_prompt_text):
+    text = get_prompt_text("speak-last-reply", messages="last 2 messages")
+    assert "either one the user sent or one the assistant (you) sent" in text
+    assert "each counts separately" in text  # a message is not a question/answer pair
+    assert "last fifth messages" in text  # ordinals count as numbers
+    assert "Do not count this request itself" in text
+
+
+def test_prompt_labels_the_owner_of_each_message_when_several_are_read(get_prompt_text):
+    text = get_prompt_text("speak-last-reply", messages="last 5 messages")
+    assert "`User message:`" in text and "`Assistant message:`" in text
+    assert "own paragraph" in text
+    assert "exactly one message is read, send it without a label" in text
+
+
+def test_prompt_adds_no_limits(get_prompt_text):
+    text = get_prompt_text("speak-last-reply", messages="last 100 messages").lower()
+    assert "limit" not in text and "20,000" not in text and "at most" not in text
+
+
+def test_tool_description_requires_verbatim_text_and_keeping_labels(list_tools):
     tool = next(t for t in list_tools() if t.name == "start_speech")
     assert "verbatim" in tool.description
     assert "Never summarize" in tool.description
     assert "previous answer" in tool.description
+    assert '"User message:"' in tool.description and '"Assistant message:"' in tool.description
 
 
 def test_list_voices_groups_by_language(call_tool):

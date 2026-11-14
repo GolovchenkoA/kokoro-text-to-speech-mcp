@@ -11,7 +11,7 @@ MCP server that gives Claude Desktop (or any MCP client) a local, offline text-t
 - `list_voices()` → voice IDs grouped by language
 
 Prompt:
-- `speak-last-reply` → pick it from the prompt/slash-command menu to have Claude read its previous answer aloud. It instructs the model to call `start_speech` once with the previous assistant message unchanged (no summary, rewording or commentary). The model follows this instruction; the server cannot read the previous message itself, so the spoken text is only as exact as the model's copy.
+- `speak-last-reply [messages]` → pick it from the prompt/slash-command menu to have Claude read recent messages aloud. `messages` is free text such as `last 5 messages` or `last fifth messages`; the default is the last message (Claude's previous answer). One message is one message sent by you or by Claude, counted separately. The model collects them oldest first and calls `start_speech` once with them unchanged. When several messages are read, each starts with its owner label, `User message:` or `Assistant message:`; a single message has no label. The prompt adds no limits (the server still rejects text over 20,000 characters). The model follows these instructions; the server cannot read the conversation itself, so the spoken text is only as exact as the model's copy.
 
 The older `speak` (save to WAV) and `play_file` tools were removed; they remain in git history (commit `3587dc0`).
 

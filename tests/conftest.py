@@ -107,10 +107,10 @@ def list_prompts(app):
 def get_prompt_text(app):
     """Text of the (single) message a prompt returns."""
 
-    def _get(name: str) -> str:
+    def _get(name: str, **arguments: str) -> str:
         async def run():
             async with Client(app.mcp) as client:
-                return await client.get_prompt(name)
+                return await client.get_prompt(name, arguments or None)
 
         messages = asyncio.run(run()).messages
         assert len(messages) == 1 and messages[0].role == "user"

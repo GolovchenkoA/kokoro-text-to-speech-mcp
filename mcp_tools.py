@@ -4,22 +4,37 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import Field
 
 from kokoro_mcp.ipc import PrimaryUnavailable
 from kokoro_mcp.speech import InvalidSpeechRequest, SpeechController
 from kokoro_mcp.voices import voices_by_language
 
 
-SPEAK_LAST_REPLY_PROMPT = (
-    "Take your previous assistant message, exactly as written, character for character, and call "
-    "the `start_speech` tool once with it as the `text` argument. "
-    "Do not summarize, shorten, translate, rephrase, reformat or add anything to it. "
+DEFAULT_MESSAGES = "the last message"
+
+SPEAK_MESSAGES_PROMPT = (
+    'Read aloud this part of the conversation: "{messages}".\n'
+    "A message is one single message, either one the user sent or one the assistant (you) sent; "
+    "each counts separately. The last message is your previous assistant message. "
+    '"Last N messages" (N may be written as a number or a word, e.g. "last 5 messages" or '
+    '"last fifth messages") means the N most recent messages counted back from it. '
+    "Do not count this request itself, tool calls, tool results or system messages.\n"
+    "Collect those messages in chronological order, oldest first, and call the `start_speech` tool "
+    "once with them as the `text` argument. "
+    "Copy every message exactly as written, character for character: do not summarize, shorten, "
+    "translate, rephrase, reformat or add anything to it. "
+    "If more than one message is read, put each message in its own paragraph (blank line between "
+    "them) and start it with its owner label: `User message:` for a message the user sent, "
+    "`Assistant message:` for a message the assistant sent. "
+    "If exactly one message is read, send it without a label. "
     "Do not write any commentary, greeting or confirmation before or after the call: your only "
     "action is the tool call. "
-    "If there is no previous assistant message, say so instead of calling the tool."
+    "If there are no such messages, say so instead of calling the tool."
 )
 
 
@@ -46,6 +61,8 @@ def register_tools(mcp: MCPServer, speech: SpeechController, default_voice: str)
         Pass the text exactly as the user gave it or as it was written in the message to be read
         aloud: verbatim, character for character. Never summarize, shorten, translate, rephrase,
         reformat or add to it. To read your previous answer aloud, send that whole answer unchanged.
+        If the text has owner labels such as "User message:" and "Assistant message:", keep them:
+        they are spoken so the listener knows who said what.
 
         Args:
             text: The text to speak, exactly as it should be heard (plain text only, not a file
@@ -61,9 +78,16 @@ def register_tools(mcp: MCPServer, speech: SpeechController, default_voice: str)
             "Use pause_speech / resume_speech / stop_speech to control it."
         )
 
-    @mcp.prompt(name="speak-last-reply", description="Speak your previous answer aloud, unchanged")
-    def speak_last_reply() -> str:
-        return SPEAK_LAST_REPLY_PROMPT
+    @mcp.prompt(
+        name="speak-last-reply",
+        description="Speak recent messages aloud, unchanged (default: your previous answer)",
+    )
+    def speak_last_reply(
+        messages: Annotated[
+            str, Field(description='Which messages to read, e.g. "last 5 messages". Default: the last message')
+        ] = DEFAULT_MESSAGES,
+    ) -> str:
+        return SPEAK_MESSAGES_PROMPT.format(messages=messages.strip() or DEFAULT_MESSAGES)
 
     @mcp.tool()
     def pause_speech() -> str:
