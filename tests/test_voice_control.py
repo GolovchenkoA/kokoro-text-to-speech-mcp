@@ -146,3 +146,69 @@ def test_voice_commands_can_only_control_speech(fakes, voice_loop, speaking):
         "status speech": "status",
     }
     assert json.loads(json.dumps(fakes.vosk.grammars[0])) == [*PHRASES, "[unk]"]
+
+
+# -- voice activity gate (VAD) -------------------------------------------------------------------
+def test_silence_never_reaches_the_recognizer(fakes, voice_loop):
+    fakes.sd.mic.silence(30)
+    fakes.sd.mic.hang_up()
+    voice_loop.join(5)
+    assert fakes.vosk.accepted == 0  # the heavy stage did not run at all
+
+
+def test_speech_opens_the_gate_with_preroll(fakes, voice_loop, speaking):
+    fakes.sd.mic.silence(10)
+    fakes.sd.mic.say("pause speech")
+    assert wait_until(lambda: state() == "paused")
+    # Only the pre-roll plus the speech block were fed; the earlier silence was dropped.
+    assert fakes.vosk.accepted == server.VAD_PREROLL_BLOCKS + 1
+
+
+def test_gate_stays_open_for_the_hangover_then_closes(fakes, voice_loop):
+    mic = fakes.sd.mic
+    mic.say("hello world")
+    mic.silence(server.VAD_HANGOVER_BLOCKS + 15)
+    mic.hang_up()
+    voice_loop.join(5)
+    # speech block + hangover blocks were fed; the remaining silence was not
+    assert fakes.vosk.accepted == 1 + server.VAD_HANGOVER_BLOCKS
+    assert fakes.vosk.final_calls == 1  # utterance end flushes the recognizer exactly once
+
+
+def test_gate_reopens_for_a_second_utterance(fakes, voice_loop, speaking):
+    mic = fakes.sd.mic
+    mic.say("pause speech")
+    assert wait_until(lambda: state() == "paused")
+    mic.silence(server.VAD_HANGOVER_BLOCKS + 3)  # gate closes
+    mic.say("continue speech")
+    assert wait_until(lambda: state() == "playing")
+
+
+def test_vad_off_feeds_every_block_to_the_recognizer(fakes, monkeypatch):
+    monkeypatch.setenv("KOKORO_VAD", "off")
+    thread = threading.Thread(target=server._voice_control_loop, daemon=True)
+    thread.start()
+    assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
+    fakes.sd.mic.silence(12)
+    fakes.sd.mic.hang_up()
+    thread.join(5)
+    assert fakes.vosk.accepted == 12
+
+
+def test_threshold_can_be_raised(fakes, monkeypatch, speaking):
+    monkeypatch.setenv("KOKORO_VAD_THRESHOLD", "5000")  # louder than the fake speech (~1000)
+    thread = threading.Thread(target=server._voice_control_loop, daemon=True)
+    thread.start()
+    assert wait_until(lambda: fakes.sd.mic_kwargs is not None)
+    fakes.sd.mic.say("pause speech")
+    fakes.sd.mic.hang_up()
+    thread.join(5)
+    assert fakes.vosk.accepted == 0
+    assert state() == "playing"
+
+
+def test_invalid_vad_settings_fall_back_to_defaults(fakes, monkeypatch):
+    monkeypatch.setenv("KOKORO_VAD", "magic")
+    monkeypatch.setenv("KOKORO_VAD_THRESHOLD", "loud")
+    gate = server._make_gate()
+    assert gate is not None and gate.threshold == server.DEFAULT_VAD_THRESHOLD

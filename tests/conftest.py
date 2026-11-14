@@ -14,13 +14,16 @@ from tests.fakes import FakeKokoro, FakeSoundDevice, FakeVosk
 @pytest.fixture
 def fakes(monkeypatch, tmp_path):
     """Replace audio, Kokoro and Vosk with fakes and reset the server's global state."""
-    sd, kokoro, vosk = FakeSoundDevice(), FakeKokoro(), FakeVosk()
+    vosk = FakeVosk()
+    sd, kokoro = FakeSoundDevice(vosk.phrases), FakeKokoro()
     monkeypatch.setitem(sys.modules, "sounddevice", sd)
     monkeypatch.setitem(sys.modules, "kokoro", kokoro)
     monkeypatch.setitem(sys.modules, "vosk", vosk)
     monkeypatch.delenv("KOKORO_WAKEWORD", raising=False)
     monkeypatch.delenv("KOKORO_VOSK_MODEL", raising=False)
     monkeypatch.delenv("KOKORO_MIC_DEVICE", raising=False)
+    monkeypatch.delenv("KOKORO_VAD", raising=False)
+    monkeypatch.delenv("KOKORO_VAD_THRESHOLD", raising=False)
     monkeypatch.chdir(tmp_path)  # lets tests assert that nothing is written to disk
     server._session = None
     server._pipelines.clear()

@@ -10,6 +10,7 @@ Optional (KOKORO_WAKEWORD=1): microphone commands "pause speech", "continue spee
 
 from __future__ import annotations
 
+import collections
 import logging
 import os
 import queue
@@ -294,6 +295,9 @@ def list_voices() -> dict[str, list[str]]:
 # processed in memory, never stored or sent anywhere.
 # --------------------------------------------------------------------------------------------
 MIC_RATE = 16_000
+VAD_PREROLL_BLOCKS = 3  # 300 ms of audio kept before speech starts
+VAD_HANGOVER_BLOCKS = 5  # 500 ms of silence tolerated before an utterance is closed
+DEFAULT_VAD_THRESHOLD = 500.0  # RMS on the int16 scale; speech is typically 1000+, a quiet room < 300
 VOICE_COMMANDS = {
     "pause speech": "pause",
     "continue speech": "resume",
@@ -329,6 +333,59 @@ def _run_voice_command(action: str) -> None:
         _announce(f"Speech is {state}.")
 
 
+class _EnergyGate:
+    """Cheap voice-activity gate: decides per 100 ms block whether anyone is speaking, so the
+    heavier recognizer only runs on speech. Keeps a short pre-roll (so the first syllable is not
+    cut) and a hangover (so the end of a phrase is not cut)."""
+
+    def __init__(self, threshold: float) -> None:
+        self.threshold = threshold
+        self._preroll: collections.deque[bytes] = collections.deque(maxlen=VAD_PREROLL_BLOCKS)
+        self._open = False
+        self._quiet = 0
+
+    def _is_loud(self, block: bytes) -> bool:
+        samples = np.frombuffer(block, dtype=np.int16).astype(np.float32)
+        return samples.size > 0 and float(np.sqrt(np.mean(samples * samples))) >= self.threshold
+
+    def process(self, block: bytes) -> tuple[list[bytes], bool]:
+        """Return (blocks to feed the recognizer, whether the utterance just ended)."""
+        loud = self._is_loud(block)
+        if not self._open:
+            if not loud:
+                self._preroll.append(block)
+                return [], False
+            self._open, self._quiet = True, 0
+            feed = [*self._preroll, block]
+            self._preroll.clear()
+            return feed, False
+        if loud:
+            self._quiet = 0
+            return [block], False
+        self._quiet += 1
+        if self._quiet >= VAD_HANGOVER_BLOCKS:
+            self._open = False
+            return [block], True
+        return [block], False
+
+
+def _make_gate() -> _EnergyGate | None:
+    """Build the VAD gate from KOKORO_VAD (energy|off) and KOKORO_VAD_THRESHOLD (RMS, int16 scale)."""
+    mode = os.environ.get("KOKORO_VAD", "energy").strip().lower()
+    if mode == "off":
+        return None
+    if mode != "energy":
+        log.warning("Unknown KOKORO_VAD=%r, using 'energy'", mode)
+    threshold = DEFAULT_VAD_THRESHOLD
+    raw = os.environ.get("KOKORO_VAD_THRESHOLD")
+    if raw:
+        try:
+            threshold = float(raw)
+        except ValueError:
+            log.warning("Invalid KOKORO_VAD_THRESHOLD=%r, using %s", raw, DEFAULT_VAD_THRESHOLD)
+    return _EnergyGate(threshold)
+
+
 def _voice_control_loop() -> None:
     """Background thread: recognize the fixed command phrases from the microphone."""
     try:
@@ -337,26 +394,34 @@ def _voice_control_loop() -> None:
         import sounddevice as sd
         from vosk import KaldiRecognizer, Model, SetLogLevel
 
+        def handle(text: str) -> None:
+            # Act only when the whole utterance is exactly a command, so speech
+            # picked up from the speakers or a room is very unlikely to trigger it.
+            if text in VOICE_COMMANDS:
+                _run_voice_command(VOICE_COMMANDS[text])
+                recognizer.Reset()
+
         SetLogLevel(-1)
         model_path = os.environ.get("KOKORO_VOSK_MODEL")
         # Without a path, vosk downloads the small English model (~40 MB) to ~/.cache/vosk on first use.
         model = Model(model_path=model_path) if model_path else Model(lang="en-us")
         grammar = json.dumps([*VOICE_COMMANDS, "[unk]"])  # restrict recognition to the four phrases
         recognizer = KaldiRecognizer(model, MIC_RATE, grammar)
+        gate = _make_gate()
         device = os.environ.get("KOKORO_MIC_DEVICE") or None
         with sd.RawInputStream(
             samplerate=MIC_RATE, blocksize=MIC_RATE // 10, dtype="int16", channels=1, device=device
         ) as mic:
             log.info("Voice control on: say %s", ", ".join(f"'{p}'" for p in VOICE_COMMANDS))
+            log.info("Voice activity gate: %s", f"energy (threshold {gate.threshold:g})" if gate else "off")
             while True:
                 data, _overflowed = mic.read(MIC_RATE // 10)
-                if recognizer.AcceptWaveform(bytes(data)):
-                    text = json.loads(recognizer.Result()).get("text", "").strip()
-                    # Act only when the whole utterance is exactly a command, so speech
-                    # picked up from the speakers or a room is very unlikely to trigger it.
-                    if text in VOICE_COMMANDS:
-                        _run_voice_command(VOICE_COMMANDS[text])
-                        recognizer.Reset()
+                blocks, ended = gate.process(bytes(data)) if gate else ([bytes(data)], False)
+                for block in blocks:
+                    if recognizer.AcceptWaveform(block):
+                        handle(json.loads(recognizer.Result()).get("text", "").strip())
+                if ended:  # speech stopped: flush whatever the recognizer still holds
+                    handle(json.loads(recognizer.FinalResult()).get("text", "").strip())
     except Exception:
         log.exception("Voice control stopped (is `vosk` installed and a microphone available?)")
 

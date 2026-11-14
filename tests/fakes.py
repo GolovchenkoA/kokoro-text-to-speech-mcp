@@ -38,13 +38,27 @@ class FakeOutputStream:
 
 
 class FakeMic:
-    """Microphone fed by the test: queue bytes with say(); None ends the loop with an error."""
+    """Microphone fed by the test with 100 ms int16 blocks.
 
-    def __init__(self) -> None:
+    say(phrase) queues a loud block that encodes the phrase (amplitude 1000 + index into the
+    shared phrase registry); silence(n) queues n silent blocks; hang_up() ends the loop with an error.
+    """
+
+    BLOCK_FRAMES = 1600
+    BASE_AMPLITUDE = 1000
+
+    def __init__(self, phrases: list[str]) -> None:
         self.queue: queue.Queue[bytes | None] = queue.Queue()
+        self.phrases = phrases
 
     def say(self, phrase: str) -> None:
-        self.queue.put(phrase.encode())
+        self.phrases.append(phrase)
+        amplitude = self.BASE_AMPLITUDE + len(self.phrases) - 1
+        self.queue.put(np.full(self.BLOCK_FRAMES, amplitude, dtype=np.int16).tobytes())
+
+    def silence(self, blocks: int = 1) -> None:
+        for _ in range(blocks):
+            self.queue.put(np.zeros(self.BLOCK_FRAMES, dtype=np.int16).tobytes())
 
     def hang_up(self) -> None:
         self.queue.put(None)
@@ -63,10 +77,10 @@ class FakeMic:
 
 
 class FakeSoundDevice(types.ModuleType):
-    def __init__(self) -> None:
+    def __init__(self, phrases: list[str]) -> None:
         super().__init__("sounddevice")
         self.streams: list[FakeOutputStream] = []
-        self.mic = FakeMic()
+        self.mic = FakeMic(phrases)
         self.mic_kwargs: dict | None = None
         self.played: list[tuple[int, int]] = []  # (frames, samplerate) per sd.play call
 
@@ -110,12 +124,16 @@ class FakeKokoro(types.ModuleType):
 
 
 class FakeVosk(types.ModuleType):
-    """Fake `vosk` module: the 'audio' is the spoken phrase itself, recognized verbatim."""
+    """Fake `vosk` module. Loud blocks from FakeMic.say() are 'recognized' as their phrase;
+    silent blocks recognize nothing. Counts how many blocks the recognizer actually received."""
 
     def __init__(self) -> None:
         super().__init__("vosk")
         self.model_args: list[dict] = []
         self.grammars: list[list[str]] = []
+        self.phrases: list[str] = []
+        self.accepted = 0  # blocks fed to AcceptWaveform
+        self.final_calls = 0
         vosk = self
 
         class Model:
@@ -129,11 +147,19 @@ class FakeVosk(types.ModuleType):
                 self._heard = ""
 
             def AcceptWaveform(self, data: bytes) -> bool:  # noqa: N802
-                self._heard = data.decode()
+                vosk.accepted += 1
+                samples = np.frombuffer(data, dtype=np.int16)
+                if not samples.any():
+                    return False
+                self._heard = vosk.phrases[int(samples[0]) - FakeMic.BASE_AMPLITUDE]
                 return True
 
             def Result(self) -> str:  # noqa: N802
                 return json.dumps({"text": self._heard})
+
+            def FinalResult(self) -> str:  # noqa: N802
+                vosk.final_calls += 1
+                return json.dumps({"text": ""})
 
             def Reset(self) -> None:  # noqa: N802
                 self._heard = ""

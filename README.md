@@ -142,6 +142,7 @@ Set `KOKORO_WAKEWORD=1` and the server listens on the microphone for exactly fou
 
 It can do nothing else. Recognition uses [Vosk](https://alphacephei.com/vosk/) restricted to those phrases and acts only when the whole utterance is exactly one of them. Audio is processed in memory and never stored or sent anywhere. Off by default. English only.
 
+- A voice activity gate (`KOKORO_VAD`) keeps Vosk idle until someone speaks. Flow details: [docs/this-program-STT-flow.md](docs/this-program-STT-flow.md).
 - First use downloads the small English model (~40 MB) to `~/.cache/vosk`; set `KOKORO_VOSK_MODEL` to a local model folder to avoid the download (e.g. for offline machines).
 - `KOKORO_MIC_DEVICE` selects the input device (name or index).
 - Use headphones if you can: the speakers' own output reaches the microphone and can cause missed commands.
@@ -169,6 +170,8 @@ Set these in the `env` block of the Claude Desktop config.
 | `KOKORO_WAKEWORD` | off | `1` enables microphone voice control |
 | `KOKORO_VOSK_MODEL` | auto-download | Path to a local Vosk model folder |
 | `KOKORO_MIC_DEVICE` | system default | Microphone name or index |
+| `KOKORO_VAD` | `energy` | `energy` runs Vosk only while someone is speaking; `off` feeds it all audio |
+| `KOKORO_VAD_THRESHOLD` | `500` | Speech level (RMS, int16 scale) that opens the gate; lower it if commands are missed |
 
 ## Languages
 
