@@ -77,6 +77,47 @@ Settings → Connectors → Add custom connector takes **only a remote server UR
 - [ ] Settings → Connectors → Add custom connector → paste the URL
 - [ ] Turn it on in a chat with **+ → Connectors**
 
+## Why a Skill alone won't work for speech-to-text (and why a plugin does)
+
+### What a skill is
+A skill is a folder with a `SKILL.md` (instructions) plus optional scripts and resources. Claude reads it when a task matches and runs its scripts **on demand, wherever Claude happens to be running**. A skill is know-how, not a running service.
+
+### Why that breaks for a speech-to-text MCP
+
+| Speech-to-text needs | What a skill provides |
+|---|---|
+| A **persistent process** that listens, buffers audio and streams results | Scripts that start only when Claude calls them, then exit |
+| **MCP tools** (e.g. `start_listening`, `stop_listening`, `get_transcript`) that Claude can call at any time | No way to register an MCP server or expose tools |
+| Access to the **microphone and audio devices** on your computer | On claude.ai, skills run in Anthropic's **cloud sandbox**, which has no mic and no access to your machine |
+| Speech models downloaded and cached locally | The sandbox's network allowlist may block model downloads, and nothing persists between sessions |
+
+Two narrow exceptions:
+- **File transcription only.** A skill could hold a pip-installable Whisper-style script that transcribes audio files the user *uploads* to the sandbox. There's still no live mic.
+- **Claude Code on your own machine.** Skill scripts run locally there, so they can reach the mic, but only as a one-off script, not as a persistent server with tools.
+
+### Why a plugin solves it
+A plugin is a package that can bundle **both** pieces:
+
+1. **The MCP server** (`.mcp.json`). It runs locally on your computer as a proper long-lived process with mic access, and exposes its tools to Claude whenever the plugin is enabled.
+2. **A skill** (`skills/<name>/SKILL.md`). It teaches Claude *when and how* to use those tools. For example: "when the user says 'dictate', call `start_listening`; when done, call `get_transcript`, remove filler words, fix punctuation, then …".
+
+So the server does the work (audio, model, streaming), the skill supplies the workflow, and users get both in **one install** from the Plugins settings or `/plugin install`, with versioned updates through a marketplace.
+
+- [ ] Add a `skills/dictation/SKILL.md` to the plugin describing the dictation workflow and tool usage
+- [ ] Keep the server in `.mcp.json` (Option 2 above)
+- [ ] Test: enable the plugin → `/mcp` shows the server → ask Claude to "dictate a note" and confirm the skill triggers
+
+Plugin layout with both:
+```
+stt-plugin/
+├── .claude-plugin/plugin.json
+├── .mcp.json                      # local speech-to-text server
+├── servers/...                    # server code
+└── skills/
+    └── dictation/
+        └── SKILL.md               # when/how to use the STT tools
+```
+
 ## Claude Code specifically
 
 Claude Code doesn't read `claude_desktop_config.json`. Instead:
