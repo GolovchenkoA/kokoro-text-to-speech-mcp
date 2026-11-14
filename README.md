@@ -3,9 +3,13 @@
 Minimal MCP server that gives Claude Desktop a local text-to-speech tool using Kokoro-82M.
 
 Tools:
-- `speak(text, voice="af_heart", speed=1.0, filename=None, play=False, save=True)` → writes a 24 kHz WAV and returns its path. With `play=True` each chunk is streamed to the speakers (via `sounddevice`) as it is generated, so long texts start almost immediately; add `save=False` for playback only
-- `play_file(path, wait=True)` → plays an existing `.wav` (Windows: `winsound`, no extra packages; elsewhere: `sounddevice`). A bare file name is looked up in the output directory
+- `start_speech(text, voice="af_heart", speed=1.0)` → speaks the text on the local speakers and returns immediately. Text only (no file paths or URLs); audio is generated and played entirely in memory via `sounddevice`, nothing is written to disk. Starting a new speech stops the current one
+- `pause_speech()` / `resume_speech()` → hold and continue the current speech (takes effect within ~0.1 s)
+- `stop_speech()` → interrupt the current speech and discard the rest
+- `speech_status()` → `idle`, `playing`, `paused`, `finished`, `stopped` or `error`
 - `list_voices()` → voice IDs grouped by language
+
+The older `speak` (save to WAV) and `play_file` tools are disabled; their code is kept commented out in `server.py`.
 
 ## Install (Python 3.14)
 

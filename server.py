@@ -1,9 +1,10 @@
 """Kokoro TTS MCP server.
 
 Exposes tools to Claude Desktop over stdio:
-  - speak(text, voice, speed, filename, play, save) -> generated .wav and/or live playback
-  - play_file(path, wait) -> play an existing .wav on the local speakers
+  - start_speech(text, voice, speed) -> speak text in the background (in memory, no files)
+  - pause_speech() / resume_speech() / stop_speech() / speech_status() -> control it
   - list_voices() -> available voice IDs grouped by language
+(speak and play_file are disabled; their code is kept commented out below.)
 """
 
 from __future__ import annotations
@@ -76,40 +77,131 @@ def _get_pipeline(lang_code: str):
         return _pipelines[lang_code]
 
 
-class _StreamPlayer:
-    """Plays audio chunks on the default output device from a background thread,
-    so synthesis of the next chunk overlaps with playback of the previous one."""
+SLICE_FRAMES = SAMPLE_RATE // 20  # 50 ms: granularity of pause/stop while audio is playing
 
-    def __init__(self) -> None:
-        import sounddevice as sd  # lazy: only needed when play=True
 
+class _SpeechSession:
+    """One in-memory speech: a generator thread synthesizes chunks into a bounded queue and a
+    playback thread streams them to the speakers in 50 ms slices. Nothing is written to disk.
+
+    State: playing <-> paused, then finished | stopped | error
+    """
+
+    def __init__(self, text: str, voice: str, speed: float) -> None:
+        import sounddevice as sd  # lazy: only needed when speech is started
+
+        self.state = "playing"
+        self.error: str | None = None
+        self._text, self._voice, self._speed = text, voice, speed
+        self._queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=3)  # bounds look-ahead while paused
+        self._stop = threading.Event()
+        self._running = threading.Event()  # set = playing, cleared = paused
+        self._running.set()
         # Open in the caller's thread so a missing/busy audio device fails fast.
         self._stream = sd.OutputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32")
-        self._stream.start()
-        self._queue: queue.Queue[np.ndarray | None] = queue.Queue()
-        self._error: BaseException | None = None
-        self._thread = threading.Thread(target=self._run, name="kokoro-playback", daemon=True)
-        self._thread.start()
+        self._generator = threading.Thread(target=self._generate, name="kokoro-generate", daemon=True)
+        self._player = threading.Thread(target=self._play, name="kokoro-play", daemon=True)
+        self._generator.start()
+        self._player.start()
 
-    def _run(self) -> None:
+    # -- controls (called from tool handlers) ---------------------------------------------
+    def pause(self) -> bool:
+        if self.state != "playing":
+            return False
+        self._running.clear()
+        self.state = "paused"
+        return True
+
+    def resume(self) -> bool:
+        if self.state != "paused":
+            return False
+        self.state = "playing"
+        self._running.set()
+        return True
+
+    def stop(self) -> bool:
+        if self.state not in ("playing", "paused"):
+            return False
+        self.state = "stopped"
+        self._stop.set()
+        self._running.set()  # wake the player if it is paused
+        return True
+
+    def join(self, timeout: float) -> None:
+        self._player.join(timeout)
+
+    # -- worker threads -------------------------------------------------------------------
+    def _put(self, item: np.ndarray | None) -> bool:
+        """Queue an item, giving up if the session is stopped. Returns False when stopped."""
+        while not self._stop.is_set():
+            try:
+                self._queue.put(item, timeout=0.1)
+                return True
+            except queue.Full:
+                continue
+        return False
+
+    def _fail(self, exc: BaseException) -> None:
+        log.exception("speech session failed")
+        self.error = str(exc)
+        if self.state in ("playing", "paused"):
+            self.state = "error"
+        self._stop.set()
+        self._running.set()
+
+    def _generate(self) -> None:
         try:
-            while (chunk := self._queue.get()) is not None:
-                self._stream.write(chunk.reshape(-1, 1))
-        except BaseException as exc:  # surfaced in close()
-            self._error = exc
+            pipeline = _get_pipeline(self._voice[:1].lower())  # may load the model: runs off the tool thread
+            produced = False
+            for _graphemes, _phonemes, audio in pipeline(
+                self._text, voice=self._voice, speed=self._speed, split_pattern=r"\n+"
+            ):
+                if self._stop.is_set():
+                    return
+                if audio is None:
+                    continue
+                chunk = audio.detach().cpu().numpy() if hasattr(audio, "detach") else np.asarray(audio)
+                produced = True
+                if not self._put(np.ascontiguousarray(chunk, dtype=np.float32)):
+                    return
+            if not produced:
+                raise RuntimeError("Kokoro produced no audio for this text")
+            self._put(None)  # end-of-speech marker
+        except BaseException as exc:
+            self._fail(exc)
+
+    def _play(self) -> None:
+        try:
+            self._stream.start()
+            while not self._stop.is_set():
+                try:
+                    chunk = self._queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                if chunk is None:
+                    break
+                for i in range(0, len(chunk), SLICE_FRAMES):
+                    self._running.wait()  # blocks while paused
+                    if self._stop.is_set():
+                        break
+                    self._stream.write(chunk[i : i + SLICE_FRAMES].reshape(-1, 1))
+            if self._stop.is_set():
+                self._stream.abort()  # drop buffered audio immediately
+            else:
+                self._stream.stop()  # let buffered audio finish
+                if self.state in ("playing", "paused"):
+                    self.state = "finished"
+        except BaseException as exc:
+            self._fail(exc)
         finally:
-            self._stream.stop()
-            self._stream.close()
+            try:
+                self._stream.close()
+            except Exception:
+                pass
 
-    def feed(self, chunk: np.ndarray) -> None:
-        self._queue.put(np.ascontiguousarray(chunk, dtype=np.float32))
 
-    def close(self) -> None:
-        """Wait for queued audio to finish playing, then release the device."""
-        self._queue.put(None)
-        self._thread.join()
-        if self._error is not None:
-            raise RuntimeError(f"audio playback failed: {self._error}") from self._error
+_session: _SpeechSession | None = None
+_session_lock = threading.Lock()
 
 
 def _safe_filename(name: str | None) -> str:
@@ -220,6 +312,87 @@ def _safe_filename(name: str | None) -> str:
 #         if wait:
 #             sd.wait()
 #     return f"Played {file}" if wait else f"Started playing {file}"
+
+
+def _status_text(session: _SpeechSession | None) -> str:
+    if session is None:
+        return "idle: no speech has been started"
+    if session.state == "error":
+        return f"error: {session.error}"
+    return session.state
+
+
+@mcp.tool()
+def start_speech(text: str, voice: str = DEFAULT_VOICE, speed: float = 1.0) -> str:
+    """Start speaking text aloud on the local speakers and return immediately.
+
+    The speech runs in the background and can be controlled with pause_speech, resume_speech
+    and stop_speech; check progress with speech_status. Audio is generated and played entirely
+    in memory (nothing is written to disk). Starting a new speech stops any speech in progress.
+
+    Args:
+        text: The text to speak (plain text only, not a file path or URL).
+        voice: Kokoro voice ID, e.g. "af_heart", "bm_george", "ff_siwis". The first letter
+            selects the language (see list_voices).
+        speed: Speaking rate, 0.5-2.0 (1.0 = normal).
+    """
+    global _session
+    text = text.strip()
+    if not text:
+        raise ValueError("text is empty")
+    if len(text) > MAX_CHARS:
+        raise ValueError(f"text is too long ({len(text)} chars, max {MAX_CHARS})")
+    if voice[:1].lower() not in LANGUAGES:
+        raise ValueError(f"unknown voice '{voice}'. Call list_voices for valid IDs.")
+    speed = min(max(speed, 0.5), 2.0)
+
+    with _session_lock:
+        previous = _session
+        if previous is not None:
+            previous.stop()
+            previous.join(2.0)
+        _session = _SpeechSession(text, voice, speed)
+    return (
+        f"Speech started ({len(text)} characters, voice {voice}). "
+        "Use pause_speech / resume_speech / stop_speech to control it."
+    )
+
+
+@mcp.tool()
+def pause_speech() -> str:
+    """Pause the current speech. Playback holds within about 0.1 s; resume_speech continues from that point."""
+    with _session_lock:
+        session = _session
+    if session is None or not session.pause():
+        return f"Nothing to pause (status: {_status_text(session)})."
+    return "Speech paused."
+
+
+@mcp.tool()
+def resume_speech() -> str:
+    """Continue a paused speech from where it was paused."""
+    with _session_lock:
+        session = _session
+    if session is None or not session.resume():
+        return f"Nothing to resume (status: {_status_text(session)})."
+    return "Speech resumed."
+
+
+@mcp.tool()
+def stop_speech() -> str:
+    """Stop (interrupt) the current speech, playing or paused, and discard the rest of the text."""
+    with _session_lock:
+        session = _session
+    if session is None or not session.stop():
+        return f"Nothing to stop (status: {_status_text(session)})."
+    return "Speech stopped."
+
+
+@mcp.tool()
+def speech_status() -> str:
+    """Report the speech state: idle, playing, paused, finished, stopped or error."""
+    with _session_lock:
+        return _status_text(_session)
 
 
 @mcp.tool()
