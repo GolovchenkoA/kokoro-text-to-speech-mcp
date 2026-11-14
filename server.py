@@ -4,6 +4,8 @@ Exposes tools to Claude Desktop over stdio:
   - start_speech(text, voice, speed) -> speak text in the background (in memory, no files)
   - pause_speech() / resume_speech() / stop_speech() / speech_status() -> control it
   - list_voices() -> available voice IDs grouped by language
+Optional (KOKORO_WAKEWORD=1): microphone commands "pause speech", "continue speech",
+"stop speech", "status speech" that control the current speech and nothing else.
 (speak and play_file are disabled; their code is kept commented out below.)
 """
 
@@ -401,5 +403,84 @@ def list_voices() -> dict[str, list[str]]:
     return {LANGUAGES[code]: voices for code, voices in VOICES.items()}
 
 
+# --------------------------------------------------------------------------------------------
+# Optional voice control (KOKORO_WAKEWORD=1): listens on the microphone for four fixed phrases
+# and can only pause / resume / stop the current speech or announce its status. Audio is
+# processed in memory, never stored or sent anywhere.
+# --------------------------------------------------------------------------------------------
+MIC_RATE = 16_000
+VOICE_COMMANDS = {
+    "pause speech": "pause",
+    "continue speech": "resume",
+    "stop speech": "stop",
+    "status speech": "status",
+}
+
+
+def _announce(message: str) -> None:
+    """Speak a short English phrase on a separate stream (used for 'status speech')."""
+    import sounddevice as sd
+
+    chunks = []
+    for _g, _p, audio in _get_pipeline("a")(message, voice="af_heart", speed=1.0):
+        if audio is not None:
+            chunks.append(audio.detach().cpu().numpy() if hasattr(audio, "detach") else np.asarray(audio))
+    if chunks:
+        sd.play(np.concatenate(chunks).astype(np.float32), SAMPLE_RATE)
+        sd.wait()
+
+
+def _run_voice_command(action: str) -> None:
+    log.info("Voice command: %s", action)
+    if action == "pause":
+        pause_speech()
+    elif action == "resume":
+        resume_speech()
+    elif action == "stop":
+        stop_speech()
+    elif action == "status":
+        with _session_lock:
+            state = _session.state if _session is not None else "idle"
+        _announce(f"Speech is {state}.")
+
+
+def _voice_control_loop() -> None:
+    """Background thread: recognize the fixed command phrases from the microphone."""
+    try:
+        import json
+
+        import sounddevice as sd
+        from vosk import KaldiRecognizer, Model, SetLogLevel
+
+        SetLogLevel(-1)
+        model_path = os.environ.get("KOKORO_VOSK_MODEL")
+        # Without a path, vosk downloads the small English model (~40 MB) to ~/.cache/vosk on first use.
+        model = Model(model_path=model_path) if model_path else Model(lang="en-us")
+        grammar = json.dumps([*VOICE_COMMANDS, "[unk]"])  # restrict recognition to the four phrases
+        recognizer = KaldiRecognizer(model, MIC_RATE, grammar)
+        device = os.environ.get("KOKORO_MIC_DEVICE") or None
+        with sd.RawInputStream(
+            samplerate=MIC_RATE, blocksize=MIC_RATE // 10, dtype="int16", channels=1, device=device
+        ) as mic:
+            log.info("Voice control on: say %s", ", ".join(f"'{p}'" for p in VOICE_COMMANDS))
+            while True:
+                data, _overflowed = mic.read(MIC_RATE // 10)
+                if recognizer.AcceptWaveform(bytes(data)):
+                    text = json.loads(recognizer.Result()).get("text", "").strip()
+                    # Act only when the whole utterance is exactly a command, so speech
+                    # picked up from the speakers or a room is very unlikely to trigger it.
+                    if text in VOICE_COMMANDS:
+                        _run_voice_command(VOICE_COMMANDS[text])
+                        recognizer.Reset()
+    except Exception:
+        log.exception("Voice control stopped (is `vosk` installed and a microphone available?)")
+
+
+def _start_voice_control() -> None:
+    if os.environ.get("KOKORO_WAKEWORD", "").lower() in ("1", "true", "yes", "on"):
+        threading.Thread(target=_voice_control_loop, name="kokoro-voice-control", daemon=True).start()
+
+
 if __name__ == "__main__":
+    _start_voice_control()
     mcp.run()  # stdio transport
