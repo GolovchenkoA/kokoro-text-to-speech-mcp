@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -46,15 +47,26 @@ def test_with_nothing_given_the_default_model_language_and_voice_are_used(catalo
     assert catalog.resolve() == Selection("kokoro", "af_heart", "en-us")
 
 
-def test_a_voice_selects_its_model_and_language(catalog):
+def test_a_voice_selects_its_language_within_the_model(catalog):
     assert catalog.resolve(voice="ff_siwis") == Selection("kokoro", "ff_siwis", "fr")
-    assert catalog.resolve(voice="Ryan") == Selection("qwen3", "Ryan", "auto")  # only qwen3 has it
+    assert catalog.resolve(model="qwen3", voice="Ryan") == Selection("qwen3", "Ryan", "auto")
 
 
-def test_a_language_selects_the_default_voice_of_the_model_that_speaks_it(catalog):
-    assert catalog.resolve(language="de") == Selection("qwen3", "Ryan", "de")  # kokoro has no German
-    assert catalog.resolve(language="fr") == Selection("kokoro", "ff_siwis", "fr")  # the default model wins
-    assert catalog.resolve(language="ko") == Selection("qwen3", "Sohee", "ko")
+def test_only_the_default_model_is_used_unless_another_is_named(catalog):
+    with pytest.raises(SelectionError, match="unknown voice 'Ryan' in model 'kokoro'"):
+        catalog.resolve(voice="Ryan")  # qwen3 has it, but kokoro is the default model
+    switched = replace(catalog, default_model="qwen3")
+    assert switched.resolve() == Selection("qwen3", "Ryan", "auto")
+    with pytest.raises(SelectionError, match="unknown voice 'af_heart' in model 'qwen3'"):
+        switched.resolve(voice="af_heart")
+
+
+def test_a_language_selects_its_default_voice_in_the_model(catalog):
+    assert catalog.resolve(language="fr") == Selection("kokoro", "ff_siwis", "fr")
+    assert catalog.resolve(model="qwen3", language="de") == Selection("qwen3", "Ryan", "de")
+    assert catalog.resolve(model="qwen3", language="ko") == Selection("qwen3", "Sohee", "ko")
+    with pytest.raises(SelectionError, match="language 'de' is not supported in model 'kokoro'"):
+        catalog.resolve(language="de")  # the default model has no German
 
 
 def test_a_short_language_code_matches_its_variants(catalog):

@@ -13,7 +13,7 @@ Models shipped in `models.json`:
 | `kokoro` (default) | Kokoro-82M | American and British English, Spanish, French, Hindi, Italian, Japanese, Brazilian Portuguese, Mandarin Chinese | `requirements-kokoro.txt` (also `requirements.txt`), `espeak-ng` |
 | `qwen3` | Qwen3-TTS 0.6B, preset voices only | English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian (any language with "auto") | `requirements-qwen3.txt` |
 
-When a request names no model, the server uses the default model, or the first model that has the requested voice and language. A model is loaded only when it is first used. Every model must meet the rules in [docs/APP_REQUIREMENTS.md](docs/APP_REQUIREMENTS.md): commercial-use license, audio only in memory, and CPU fallback.
+**The default model (`default_model` in the file) decides what is supported.** When a request names no model, only the default model is used: a language or voice it does not have is not supported, even if another model in the file has it. Another model is used only when the request names it (`model` argument). A model is loaded only when it is first used. Every model must meet the rules in [docs/APP_REQUIREMENTS.md](docs/APP_REQUIREMENTS.md): commercial-use license, audio only in memory, and CPU fallback.
 
 **Devices.** Each model runs on the GPU when there is one (`"device": "auto"` in the file, or `TTS_DEVICE`) and on the CPU otherwise. A requested GPU that is missing, or a GPU that fails to load a model, falls back to the CPU with a log message.
 
@@ -261,15 +261,15 @@ Call `list_models` for the exact languages and voices of every model. Kokoro voi
 
 **Choosing the language.** Pass `language` (for example `"ru"`) whenever you know it; the server cannot tell German from English, because both are written in Latin letters. Without `language` or `voice`, the default model's default voice reads the text. A text in another writing system is detected (Cyrillic, Chinese, Japanese, Korean, Devanagari, Greek, Arabic and so on):
 
-- with no `language`, the first model that speaks a language of that script is used (a Russian text goes to Qwen3 when Kokoro has no Russian);
+- with no `language`, the model's first language of that script is used; if the model (the default one, unless the request names another) has none, the text is refused (a Russian text is refused while Kokoro is the default model, even though Qwen3 speaks Russian);
 - a voice or language that cannot read the text is refused with an error that the agent sees, instead of being read wrongly;
 - if the chosen model's package is not installed, `start_speech` is refused at once with an error that names the model and the install command (nothing is started and nothing fails later in the background).
 
 **Language check for Latin-script text.** `start_speech` goes through a guard (`tts_mcp/guards.py`) that detects the language of the text with [Lingua](https://github.com/pemistahl/lingua-py) (offline, on the CPU; Apache-2.0 per its package metadata) before anything is spoken:
 
 - only the first 200 characters are examined, and a text shorter than 120 characters is not checked at all and counts as supported;
-- a language that no model in `models.json` speaks (Polish, for example) is refused with an error that names the language and lists the supported ones;
-- a voice or language that cannot read the detected language is refused; if you name no language, voice or model, the detected language is passed on so a model that speaks it is chosen (German goes to Qwen3);
+- a language that the model does not speak (the default model, unless the request names another) is refused with an error that names the language and lists the languages the model speaks;
+- a voice or language that cannot read the detected language is refused; if you name no language, voice or model, the detected language is passed on so a model that speaks it is chosen (if the model speaks it);
 - when the detector is not sure (confidence below 0.8) the text counts as supported;
 - the detector loads in the background at start (about 5 s, about 50 MB) and each check takes a few milliseconds;
 - `TTS_LANGUAGE_CHECK=0` turns the check off. If `lingua-language-detector` is not installed the check is off and the server logs a warning.

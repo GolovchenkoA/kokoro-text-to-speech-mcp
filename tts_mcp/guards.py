@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
 
-from tts_mcp.catalog import Catalog, SelectionError, language_matches
+from tts_mcp.catalog import Catalog, ModelSpec, SelectionError, language_matches
 from tts_mcp.detectors import LanguageDetector
 from tts_mcp.speech import SpeechController
 
@@ -40,7 +40,9 @@ class Guard(Protocol):
 
 
 class LanguageGuard:
-    """Refuses a text whose language no model speaks, or that the chosen voice cannot read.
+    """Refuses a text whose language the model does not speak, or that the chosen voice cannot read.
+
+    "The model" is the one the request names, otherwise the default model of the models file.
 
     Only the first `SAMPLE_CHARS` characters are examined, and nothing at all when the text has fewer than
     `MIN_CHARS`. When the caller named no language, voice or model, the detected language is passed on so
@@ -70,10 +72,13 @@ class LanguageGuard:
         if detection is None or detection.confidence < self._min_confidence:
             return request  # not sure: counts as supported
 
-        if not self._is_spoken_by_a_model(detection.code):
+        spec = self._catalog.model_for(request.model)
+        if spec is None:
+            return request  # an unknown model: the catalogue reports it when the request is resolved
+        if not self._is_spoken_by(spec, detection.code):
             raise SelectionError(
                 f"The text language was detected as {detection.name} ({detection.code}) and it is not "
-                f"supported by the model. Supported languages: {self._supported_languages()}."
+                f"supported by the model. Supported languages: {self._supported_languages(spec)}."
             )
         if not (request.language or request.voice):
             return replace(request, language=detection.code)
@@ -88,21 +93,15 @@ class LanguageGuard:
             f"model '{selection.model}') was chosen. Pass language '{detection.code}' or leave the voice out."
         )
 
-    def _is_spoken_by_a_model(self, code: str) -> bool:
+    @staticmethod
+    def _is_spoken_by(spec: ModelSpec, code: str) -> bool:
         return any(
-            language_matches(language.code, code)
-            for spec in self._catalog.models.values()
-            for language in spec.languages.values()
-            if not language.detects_language
+            language_matches(language.code, code) for language in spec.languages.values() if not language.detects_language
         )
 
-    def _supported_languages(self) -> str:
-        names = []
-        for spec in self._catalog.models.values():
-            for language in spec.languages.values():
-                if not language.detects_language and language.name not in names:
-                    names.append(language.name)
-        return ", ".join(names)
+    @staticmethod
+    def _supported_languages(spec: ModelSpec) -> str:
+        return ", ".join(language.name for language in spec.languages.values() if not language.detects_language)
 
 
 class GuardedSpeech:

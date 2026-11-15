@@ -97,8 +97,9 @@ def register_tools(
             voice: Voice ID from list_models. Optional: leave it out to get the default voice for
                 the language.
             speed: Speaking rate, 0.5-2.0 (1.0 = normal). Some models ignore it.
-            model: Model name from list_models. Optional: leave it out to use the default model,
-                or the first model that has the requested voice and language.
+            model: Model name from list_models. Optional: leave it out to use the default model. Only
+                the default model is used unless you name another one, so a language or voice that
+                the default model lacks is refused unless you pass the model that has it.
             language: Language code of the text, e.g. "en", "de", "fr", "ru" (see list_models). Always
                 pass it when you know the language of the text: without it the default model's voice
                 reads the text, and a Latin-script text in another language is then read wrongly.

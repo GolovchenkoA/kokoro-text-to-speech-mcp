@@ -7,9 +7,10 @@ from collections.abc import Callable
 import numpy as np
 
 from tts_mcp.audio import play_blocking
+from tts_mcp.catalog import SelectionError, Selection
 from tts_mcp.synthesis import SpeechSynthesizer
 
-ANNOUNCE_LANGUAGE = "en"  # status is always announced in English, by the first model that speaks it
+ANNOUNCE_LANGUAGE = "en"  # status is always announced in English: by the default model, else the first that speaks it
 
 
 class StatusAnnouncer:
@@ -23,8 +24,17 @@ class StatusAnnouncer:
         self._synthesizer = synthesizer
         self._play = play
 
+    def _english_selection(self) -> Selection:
+        catalog = self._synthesizer.catalog
+        for model in (None, *catalog.models):  # None: the default model
+            try:
+                return catalog.resolve(model, None, ANNOUNCE_LANGUAGE)
+            except SelectionError:
+                continue
+        return catalog.resolve(None, None, ANNOUNCE_LANGUAGE)  # raises: no model speaks English
+
     def announce(self, message: str) -> None:
-        selection = self._synthesizer.catalog.resolve(language=ANNOUNCE_LANGUAGE)
+        selection = self._english_selection()
         chunks = list(self._synthesizer.synthesize(message, selection, 1.0))
         if chunks:
             self._play(np.concatenate(chunks), self._synthesizer.sample_rate(selection.model))

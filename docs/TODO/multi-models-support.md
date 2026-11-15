@@ -73,8 +73,7 @@ Design: Strategy (`SpeechEngine`), Factory by import path (`create_engine`), and
 ### 2.4 Choosing and switching models
 
 - [x] Add optional `model` and `language` parameters to `start_speech`, and make `voice` optional
-- [x] Choose the model automatically when none is given: the default model first, then the first model that has the requested voice and language
-- [x] Switch the model when the requested voice or language is not supported by the default one
+- [x] Choose the model when none is given: only the default model (`default_model`) is used, so what it lacks is unsupported; another model is used only when the request names it (decided: no automatic switching)
 - [x] Return a clear error when no configured model supports the request
 - [x] Loaded models stay loaded once used (decided: a model is loaded on first use and kept)
 - [x] Primary/secondary instances: the primary resolves the request and loads models; a secondary only forwards it

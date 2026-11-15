@@ -81,13 +81,14 @@ class Catalog:
     ) -> Selection:
         """Pick the model, language and voice for a request. Anything left out is chosen from the file.
 
-        Without `model`, the default model is tried first, then the others in file order, and the
-        first one that has the voice and the language wins. Without `voice`, the language's default
-        voice is used. With neither voice nor language, the model's first language is used.
+        Without `model`, only the default model (`default_model` in the file) is used: what it does not
+        speak is not supported, and another model is used only when the caller names it. Without
+        `voice`, the language's default voice is used. With neither voice nor language, the model's
+        first language is used.
 
         With `text`, a text in a non-Latin writing system (for example Cyrillic) also decides: if no
-        language is given, the first model that speaks a language of that writing system is used, and
-        a choice that cannot read the text is refused instead of being spoken wrongly.
+        language is given, the model's first language of that writing system is used, and a choice
+        that cannot read the text is refused instead of being spoken wrongly.
         """
         model, voice, language = (value.strip() or None if value else None for value in (model, voice, language))
         if model:
@@ -96,7 +97,6 @@ class Catalog:
             candidates = [self.models[model]]
         else:
             candidates = [self.models[self.default_model]]
-            candidates += [spec for spec in self.models.values() if spec.id != self.default_model]
 
         script = detect_script(text) if text else None
         if script and not language:
@@ -129,7 +129,7 @@ class Catalog:
 
     @staticmethod
     def _explain_script(candidates: list[ModelSpec], voice: str | None, script: str) -> str:
-        which = f"model '{candidates[0].id}'" if len(candidates) == 1 else "any configured model"
+        which = f"model '{candidates[0].id}'"
         wanted = f" with voice '{voice}'" if voice else ""
         return (
             f"the text is written in {script} script and {which}{wanted} has no language for it "
@@ -148,7 +148,7 @@ class Catalog:
 
     @staticmethod
     def _explain(candidates: list[ModelSpec], voice: str | None, language: str | None) -> str:
-        scope = f" in model '{candidates[0].id}'" if len(candidates) == 1 else ""
+        scope = f" in model '{candidates[0].id}'"
         hint = " Call list_models for what is available."
         languages = [lang for spec in candidates for lang in spec.languages.values()]
         if voice and not any(voice in lang.voices for lang in languages):
@@ -156,6 +156,10 @@ class Catalog:
         if language and not any(_matches(lang.code, language) for lang in languages):
             return f"language '{language}' is not supported{scope}.{hint}"
         return f"voice '{voice}' is not available for language '{language}'{scope}.{hint}"
+
+    def model_for(self, name: str | None) -> ModelSpec | None:
+        """The model a request without a language would use: the named one, else the default. None if unknown."""
+        return self.models.get(name or self.default_model)
 
     def describe(self) -> dict[str, Any]:
         """The catalogue as plain data (what the list_models tool returns)."""

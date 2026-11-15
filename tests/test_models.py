@@ -37,16 +37,20 @@ def test_the_default_model_speaks_when_nothing_else_is_asked(call_tool, fakes):
     assert not fakes.qwen.calls
 
 
-def test_a_voice_of_another_model_switches_to_that_model(call_tool, fakes):
-    text = call_tool("start_speech", text="Hello", voice="Ryan").text
+def test_another_model_is_used_only_when_it_is_named(call_tool, fakes):
+    refused = call_tool("start_speech", text="Hello", voice="Ryan")  # a voice of qwen3, but kokoro is the default
+    assert refused.is_error and "unknown voice 'Ryan' in model 'kokoro'" in refused.text
+    text = call_tool("start_speech", text="Hello", model="qwen3", voice="Ryan").text
     assert "model qwen3, voice Ryan" in text
     assert wait_until(lambda: fakes.qwen.calls)
     assert fakes.qwen.calls[0] == {"text": "Hello", "language": "Auto", "speaker": "Ryan"}
     assert not fakes.engine.calls
 
 
-def test_a_language_only_one_model_speaks_switches_to_that_model(call_tool, fakes):
-    result = call_tool("start_speech", text="Guten Tag", language="de")
+def test_a_language_the_default_model_lacks_is_not_supported_unless_a_model_is_named(call_tool, fakes):
+    refused = call_tool("start_speech", text="Guten Tag", language="de")
+    assert refused.is_error and "language 'de' is not supported in model 'kokoro'" in refused.text
+    result = call_tool("start_speech", text="Guten Tag", model="qwen3", language="de")
     assert "model qwen3, voice Ryan" in result.text
     assert wait_until(lambda: fakes.qwen.calls)
     assert fakes.qwen.calls[0]["language"] == "German"
@@ -80,7 +84,7 @@ def test_requests_no_model_can_serve_are_rejected(call_tool, arguments, message)
 def test_selection_works_through_a_secondary_instance(make_app, fakes):
     make_app(pid=1111)
     secondary = make_app(pid=2222)
-    result = call_tool_on(secondary, "start_speech", text="Hallo", language="de")
+    result = call_tool_on(secondary, "start_speech", text="Hallo", model="qwen3", language="de")
     assert not result.is_error and "model qwen3" in result.text
     assert wait_until(lambda: fakes.qwen.calls)
     bad = call_tool_on(secondary, "start_speech", text="Hi", model="nope")
@@ -91,7 +95,7 @@ def test_selection_works_through_a_secondary_instance(make_app, fakes):
 def test_a_model_is_loaded_only_when_first_used_and_then_kept(call_tool, fakes):
     assert not fakes.qwen.loads
     for _ in range(2):
-        call_tool("start_speech", text="Hello", voice="Ryan")
+        call_tool("start_speech", text="Hello", model="qwen3", voice="Ryan")
         assert wait_until(lambda: status_of(call_tool) == "finished")
     assert len(fakes.qwen.loads) == 1
 
@@ -107,6 +111,10 @@ def test_another_default_model_is_a_change_to_the_file_only(make_app, fakes, tmp
     assert "model qwen3, voice Ryan" in result.text
     assert wait_until(lambda: fakes.qwen.calls)
     assert not fakes.engine.calls
+    # what the new default model speaks is supported now, and what it lacks is not
+    assert not call_tool_on(app, "start_speech", text="Hallo", language="de").is_error
+    refused = call_tool_on(app, "start_speech", text="Hello", voice="af_heart")
+    assert refused.is_error and "unknown voice 'af_heart' in model 'qwen3'" in refused.text
 
 
 def test_the_sample_rate_comes_from_the_file(make_app, fakes, tmp_path):
@@ -166,7 +174,7 @@ def test_an_invalid_models_file_stops_the_server_at_start(make_app, tmp_path):
 
 # -- CPU fallback --------------------------------------------------------------------------------
 def test_without_a_gpu_the_models_run_on_the_cpu(call_tool, fakes):
-    call_tool("start_speech", text="Hello", voice="Ryan")
+    call_tool("start_speech", text="Hello", model="qwen3", voice="Ryan")
     call_tool("start_speech", text="Hello")
     assert wait_until(lambda: fakes.qwen.loads and fakes.engine.calls)
     assert fakes.qwen.loads[0] == {"repo": REAL_MODELS["models"]["qwen3"]["options"]["repo"], "device_map": "cpu", "dtype": "float32"}
@@ -175,7 +183,7 @@ def test_without_a_gpu_the_models_run_on_the_cpu(call_tool, fakes):
 
 def test_with_a_gpu_it_is_used(call_tool, fakes):
     fakes.gpus["available"] = frozenset({"cpu", "cuda"})
-    call_tool("start_speech", text="Hello", voice="Ryan")
+    call_tool("start_speech", text="Hello", model="qwen3", voice="Ryan")
     call_tool("start_speech", text="Hello")
     assert wait_until(lambda: fakes.qwen.loads and fakes.engine.calls)
     assert fakes.qwen.loads[0]["device_map"] == "cuda:0" and fakes.qwen.loads[0]["dtype"] == "bfloat16"
@@ -185,7 +193,7 @@ def test_with_a_gpu_it_is_used(call_tool, fakes):
 def test_a_gpu_that_fails_to_load_a_model_falls_back_to_the_cpu(call_tool, fakes):
     fakes.gpus["available"] = frozenset({"cpu", "cuda"})
     fakes.qwen.fail_on_gpu = True
-    call_tool("start_speech", text="Hello", voice="Ryan")
+    call_tool("start_speech", text="Hello", model="qwen3", voice="Ryan")
     assert wait_until(lambda: len(fakes.qwen.loads) == 2)
     assert [load["device_map"] for load in fakes.qwen.loads] == ["cuda:0", "cpu"]
     assert wait_until(lambda: status_of(call_tool) == "finished")  # and it spoke
@@ -236,7 +244,7 @@ def test_blank_text_gives_no_pieces():
 
 def test_a_long_text_is_spoken_piece_by_piece_by_a_model_that_cannot_stream(call_tool, fakes):
     sentences = " ".join(f"Sentence number {i}." for i in range(60))  # ~1000 characters, limit is 300
-    call_tool("start_speech", text=sentences, voice="Ryan")
+    call_tool("start_speech", text=sentences, model="qwen3", voice="Ryan")
     assert wait_until(lambda: len(fakes.qwen.calls) >= 3)
     assert all(len(call["text"]) <= 300 for call in fakes.qwen.calls)
     assert wait_until(lambda: status_of(call_tool) == "finished")

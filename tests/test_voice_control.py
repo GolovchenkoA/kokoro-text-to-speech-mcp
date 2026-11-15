@@ -234,3 +234,40 @@ def test_threshold_can_be_raised(fakes, make_app):
     stop_loop(fakes, thread)
     assert fakes.vosk.accepted == 0
     assert session.state == "playing"
+
+
+# -- the status announcement follows the models file ---------------------------------------------
+def test_the_announcement_uses_the_first_model_that_speaks_english_when_the_default_does_not():
+    import numpy as np
+
+    from tts_mcp.catalog import parse_catalog
+    from tts_mcp.voice_control.announcer import StatusAnnouncer
+
+    def entry(languages):
+        return {"engine": "x:Y", "sample_rate": 8000, "languages": languages}
+
+    catalog = parse_catalog(
+        {
+            "default_model": "french",
+            "models": {
+                "french": entry({"fr": {"voices": ["pierre"]}}),
+                "english": entry({"en": {"voices": ["amy"]}}),
+            },
+        }
+    )
+    spoken = []
+
+    class Synthesizer:
+        def __init__(self) -> None:
+            self.catalog = catalog
+
+        def synthesize(self, text, selection, speed):
+            spoken.append(selection)
+            yield np.zeros(10, dtype=np.float32)
+
+        def sample_rate(self, model):
+            return catalog.models[model].sample_rate
+
+    played = []
+    StatusAnnouncer(Synthesizer(), lambda samples, rate: played.append(rate)).announce("Speech is idle.")
+    assert (spoken[0].model, spoken[0].voice) == ("english", "amy") and played == [8000]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from tests.conftest import call_tool_on
@@ -51,8 +53,11 @@ def test_each_script_has_candidate_languages_in_order_of_likelihood():
 
 
 # -- choosing a model for the text ---------------------------------------------------------------
-def test_a_russian_text_goes_to_the_model_that_speaks_russian(catalog):
-    assert catalog.resolve(text=RUSSIAN) == Selection("qwen3", "Ryan", "ru")  # kokoro has no Cyrillic language
+def test_a_russian_text_is_not_supported_by_the_default_model(catalog):
+    with pytest.raises(SelectionError, match="model 'kokoro' has no language for it"):
+        catalog.resolve(text=RUSSIAN)  # kokoro is the default and has no Cyrillic language
+    assert catalog.resolve(model="qwen3", text=RUSSIAN) == Selection("qwen3", "Ryan", "ru")  # when it is named
+    assert replace(catalog, default_model="qwen3").resolve(text=RUSSIAN) == Selection("qwen3", "Ryan", "ru")
 
 
 def test_chinese_and_japanese_texts_stay_with_the_default_model(catalog):
@@ -60,17 +65,19 @@ def test_chinese_and_japanese_texts_stay_with_the_default_model(catalog):
     assert catalog.resolve(text="これは日本語のテストです。") == Selection("kokoro", "jf_alpha", "ja")
 
 
-def test_a_korean_text_goes_to_the_model_that_speaks_korean(catalog):
-    assert catalog.resolve(text="안녕하세요, 테스트입니다.") == Selection("qwen3", "Sohee", "ko")
+def test_a_korean_text_needs_a_model_that_speaks_korean(catalog):
+    assert catalog.resolve(model="qwen3", text="안녕하세요, 테스트입니다.") == Selection("qwen3", "Sohee", "ko")
+    with pytest.raises(SelectionError, match="Hangul"):
+        catalog.resolve(text="안녕하세요, 테스트입니다.")
 
 
 def test_a_latin_text_is_unchanged(catalog):
     assert catalog.resolve(text="Guten Tag") == catalog.resolve()
-    assert catalog.resolve(language="de", text="Guten Tag") == Selection("qwen3", "Ryan", "de")
+    assert catalog.resolve(model="qwen3", language="de", text="Guten Tag") == Selection("qwen3", "Ryan", "de")
 
 
 def test_a_named_language_that_matches_the_text_is_accepted(catalog):
-    assert catalog.resolve(language="ru", text=RUSSIAN) == Selection("qwen3", "Ryan", "ru")
+    assert catalog.resolve(model="qwen3", language="ru", text=RUSSIAN) == Selection("qwen3", "Ryan", "ru")
     assert catalog.resolve(model="qwen3", voice="Ryan", text=RUSSIAN) == Selection("qwen3", "Ryan", "ru")
 
 
@@ -94,8 +101,11 @@ def test_a_voice_or_language_that_cannot_read_the_text_is_refused(catalog, argum
 
 
 # -- end to end ----------------------------------------------------------------------------------
-def test_a_russian_text_is_spoken_by_the_model_that_can_read_it(call_tool, fakes):
-    result = call_tool("start_speech", text=RUSSIAN)
+def test_a_russian_text_is_refused_by_the_default_model_and_spoken_by_a_named_one(call_tool, fakes):
+    refused = call_tool("start_speech", text=RUSSIAN)
+    assert refused.is_error and "model 'kokoro' has no language for it" in refused.text
+    assert not fakes.engine.calls and not fakes.qwen.calls
+    result = call_tool("start_speech", text=RUSSIAN, model="qwen3")
     assert not result.is_error and "model qwen3" in result.text
     assert wait_until(lambda: fakes.qwen.calls)
     assert fakes.qwen.calls[0]["language"] == "Russian"
@@ -121,7 +131,7 @@ def test_a_model_whose_package_is_missing_is_refused_at_once_with_the_install_co
 
     monkeypatch.setitem(sys.modules, "qwen_tts", None)  # makes `import qwen_tts` fail
     app = make_app()
-    result = call_tool_on(app, "start_speech", text=RUSSIAN)
+    result = call_tool_on(app, "start_speech", text=RUSSIAN, model="qwen3")
     assert result.is_error
     assert "model 'qwen3' (Russian)" in result.text and "cannot run" in result.text
     assert "pip install -r requirements-qwen3.txt" in result.text

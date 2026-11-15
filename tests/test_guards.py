@@ -1,6 +1,9 @@
-"""The guard wrapper and the language guard: refuse what no model can read, skip what is too short."""
+"""The guard wrapper and the language guard: refuse what the model cannot read, skip what is too short."""
 
 from __future__ import annotations
+
+import json
+from dataclasses import replace
 
 import pytest
 
@@ -21,6 +24,8 @@ from tts_mcp.guards import (
 GERMAN = Detection("de", "German", 0.99)
 POLISH = Detection("pl", "Polish", 0.99)
 ENGLISH = Detection("en", "English", 0.99)
+FRENCH = Detection("fr", "French", 0.99)
+RUSSIAN = Detection("ru", "Russian", 0.99)
 
 
 def long_text(length: int = 150) -> str:
@@ -45,7 +50,23 @@ class FakeDetector:
 
 @pytest.fixture(scope="module")
 def catalog():
+    """The shipped file: Kokoro is the default model."""
     return load_catalog(default_models_file())
+
+
+@pytest.fixture(scope="module")
+def qwen_catalog(catalog):
+    """The same file with Qwen3 as the default model: a change to `default_model` only."""
+    return replace(catalog, default_model="qwen3")
+
+
+@pytest.fixture
+def qwen_default_file(tmp_path):
+    data = json.loads(default_models_file().read_text(encoding="utf-8"))
+    data["default_model"] = "qwen3"
+    path = tmp_path / "models-qwen-default.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
 
 
 def guard_for(catalog, detection):
@@ -92,49 +113,69 @@ def test_an_answer_that_is_unsure_or_missing_counts_as_supported(catalog):
         assert guard.check(original) is original
 
 
-# -- what is refused or adjusted -----------------------------------------------------------------
-def test_a_language_no_model_speaks_is_refused_with_the_supported_languages(catalog):
+# -- the default model decides what is supported -------------------------------------------------
+def test_a_language_the_default_model_lacks_is_refused_with_the_languages_it_speaks(catalog):
     guard, _ = guard_for(catalog, POLISH)
     with pytest.raises(SelectionError, match=r"detected as Polish \(pl\) and it is not supported by the model") as error:
         guard.check(request(long_text()))
-    message = str(error.value)
-    assert "American English" in message and "German" in message and "Polish" not in message.split("Supported")[1]
-    assert "Any language" not in message  # the model that guesses by itself does not count as a language
+    supported = str(error.value).split("Supported languages:")[1]
+    assert "American English" in supported and "French" in supported  # what the default model speaks
+    assert "German" not in supported  # qwen3 speaks it, but it is not the default model: not counted
+
+
+def test_a_language_only_another_model_speaks_is_refused_unless_that_model_is_named(catalog):
+    guard, _ = guard_for(catalog, GERMAN)  # qwen3 speaks German, kokoro (the default) does not
+    with pytest.raises(SelectionError, match=r"detected as German \(de\) and it is not supported by the model"):
+        guard.check(request(long_text()))
+    assert guard.check(request(long_text(), model="qwen3")).language == "de"
+
+
+def test_when_the_default_model_is_changed_its_languages_are_the_supported_ones(qwen_catalog):
+    guard, _ = guard_for(qwen_catalog, GERMAN)
+    assert guard.check(request(long_text())).language == "de"
+    guard, _ = guard_for(qwen_catalog, Detection("hi", "Hindi", 0.99))  # kokoro speaks Hindi, qwen3 does not
+    with pytest.raises(SelectionError, match="Hindi"):
+        guard.check(request(long_text()))
 
 
 def test_the_detected_language_is_passed_on_when_the_caller_named_none(catalog):
-    guard, _ = guard_for(catalog, GERMAN)
-    assert guard.check(request(long_text())).language == "de"
+    guard, _ = guard_for(catalog, FRENCH)
+    assert guard.check(request(long_text())).language == "fr"
 
 
-def test_a_language_that_is_named_is_checked_against_the_text(catalog):
-    guard, _ = guard_for(catalog, GERMAN)
+def test_a_language_that_is_named_is_checked_against_the_text(qwen_catalog):
+    guard, _ = guard_for(qwen_catalog, GERMAN)
     named = request(long_text(), language="de")
     assert guard.check(named) is named
-    with pytest.raises(SelectionError, match=r"The text is in German \(de\) but American English"):
+    with pytest.raises(SelectionError, match=r"The text is in German \(de\) but English"):
         guard.check(request(long_text(), language="en"))
 
 
-def test_a_voice_that_cannot_read_the_text_is_refused(catalog):
-    guard, _ = guard_for(catalog, GERMAN)
-    with pytest.raises(SelectionError, match=r"voice 'af_heart', model 'kokoro'.*Pass language 'de'"):
-        guard.check(request(long_text(), voice="af_heart"))
+def test_a_voice_that_cannot_read_the_text_is_refused(catalog, qwen_catalog):
+    guard, _ = guard_for(catalog, FRENCH)
+    with pytest.raises(SelectionError, match=r"voice 'af_heart', model 'kokoro'.*Pass language 'fr'"):
+        guard.check(request(long_text(), voice="af_heart"))  # kokoro speaks French, but not with this voice
+    guard, _ = guard_for(qwen_catalog, GERMAN)
     ryan = request(long_text(), voice="Ryan")  # Qwen3 voices read any language
     assert guard.check(ryan) is ryan
 
 
-def test_a_named_model_gets_the_detected_language_and_the_catalogue_refuses_it_if_it_lacks_it(make_app, catalog):
+def test_a_named_model_that_lacks_the_language_is_refused(catalog):
     guard, _ = guard_for(catalog, GERMAN)
-    assert guard.check(request(long_text(), model="kokoro")).language == "de"
-    app = make_app(detector=FakeDetector(GERMAN))
-    result = call_tool_on(app, "start_speech", text=long_text(), model="kokoro")
-    assert result.is_error and "language 'de' is not supported in model 'kokoro'" in result.text
+    with pytest.raises(SelectionError, match="not supported by the model"):
+        guard.check(request(long_text(), model="kokoro"))
 
 
-def test_an_unknown_voice_is_reported_by_the_catalogue(catalog):
-    guard, _ = guard_for(catalog, GERMAN)
+def test_an_unknown_voice_is_reported_by_the_catalogue(qwen_catalog):
+    guard, _ = guard_for(qwen_catalog, GERMAN)
     with pytest.raises(SelectionError, match="unknown voice 'xx_nobody'"):
         guard.check(request(long_text(), voice="xx_nobody"))
+
+
+def test_an_unknown_model_is_left_to_the_catalogue(catalog):
+    guard, _ = guard_for(catalog, GERMAN)
+    original = request(long_text(), model="nope")
+    assert guard.check(original) is original
 
 
 # -- the wrapper ---------------------------------------------------------------------------------
@@ -209,8 +250,16 @@ def test_an_unsupported_language_gets_an_error_response_and_nothing_is_spoken(ma
     assert not fakes.engine.calls and not fakes.qwen.calls and not fakes.sd.streams
 
 
-def test_a_supported_language_is_routed_to_a_model_that_speaks_it(make_app, fakes):
-    app = make_app(detector=FakeDetector(GERMAN))
+def test_a_russian_text_is_reported_as_unsupported_while_qwen3_is_not_the_default(make_app, fakes):
+    app = make_app(detector=FakeDetector(RUSSIAN))
+    result = call_tool_on(app, "start_speech", text=long_text())
+    assert result.is_error
+    assert "detected as Russian (ru) and it is not supported by the model" in result.text
+    assert not fakes.qwen.calls and not fakes.sd.streams
+
+
+def test_a_language_of_the_default_model_is_spoken_by_it(make_app, fakes, qwen_default_file):
+    app = make_app(detector=FakeDetector(GERMAN), models_file=qwen_default_file)  # qwen3 is the default here
     result = call_tool_on(app, "start_speech", text=long_text())
     assert not result.is_error and "model qwen3" in result.text
     assert wait_until(lambda: fakes.qwen.calls)
@@ -284,16 +333,20 @@ def test_lingua_names_the_language_in_english(lingua_detector):
     assert lingua_detector.detect(SAMPLES["pl"]).name == "Polish"
 
 
-def test_the_guard_with_lingua_refuses_polish_and_accepts_german_and_russian(catalog, lingua_detector):
-    guard = LanguageGuard(catalog, lingua_detector)
-
+def test_the_guard_with_lingua_follows_the_default_model(catalog, qwen_catalog, lingua_detector):
     def long(code):  # the guard skips texts below 120 characters
         return SAMPLES[code] + " " + SAMPLES[code]
 
+    kokoro_default = LanguageGuard(catalog, lingua_detector)
+    assert kokoro_default.check(request(long("en"))).language == "en"
+    for code in ("pl", "de", "ru"):  # none of these is spoken by Kokoro
+        with pytest.raises(SelectionError, match="not supported by the model"):
+            kokoro_default.check(request(long(code)))
+
+    qwen_default = LanguageGuard(qwen_catalog, lingua_detector)
+    assert qwen_default.check(request(long("de"))).language == "de"
+    assert qwen_default.check(request(long("ru"))).language == "ru"
     with pytest.raises(SelectionError, match="Polish"):
-        guard.check(request(long("pl")))
-    assert guard.check(request(long("de"))).language == "de"
-    assert guard.check(request(long("ru"))).language == "ru"
-    assert guard.check(request(long("en"))).language == "en"
+        qwen_default.check(request(long("pl")))  # qwen3 has no Polish either
     short = request(SAMPLES["pl"][:100])
-    assert guard.check(short) is short  # under 120 characters: not checked
+    assert qwen_default.check(short) is short  # under 120 characters: not checked
