@@ -1,0 +1,4 @@
+mcp>=2,<3
+sounddevice>=0.5
+numpy>=2.0
+vosk>=0.3.45

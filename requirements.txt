@@ -1,5 +1,2 @@
-kokoro==0.9.4
-mcp>=2,<3
-sounddevice>=0.5
-numpy>=2.0
-vosk>=0.3.45
+# Base packages plus the default model (Kokoro). For another model install its requirements-<model>.txt.
+-r requirements-kokoro.txt
