@@ -37,7 +37,7 @@
       "options": { "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "max_chars": 300 },
       "voices": ["Ryan", "Aiden", "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric", "Ono_Anna", "Sohee"],
       "languages": {
-        "auto": { "name": "Any language (detected by the model)", "engine_code": "Auto", "default_voice": "Ryan" },
+        "auto": { "name": "Any language (detected by the model)", "engine_code": "Auto", "default_voice": "Ryan", "detects_language": true },
         "en": { "name": "English", "engine_code": "English", "default_voice": "Ryan" },
         "zh": { "name": "Chinese", "engine_code": "Chinese", "default_voice": "Vivian" },
         "ja": { "name": "Japanese", "engine_code": "Japanese", "default_voice": "Ono_Anna" },

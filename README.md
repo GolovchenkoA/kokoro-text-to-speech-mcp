@@ -255,6 +255,12 @@ Set these in the `env` block of the Claude Desktop config.
 
 Call `list_models` for the exact languages and voices of every model. Kokoro voice IDs are language specific (`af_heart` American English, `bm_george` British English, `ff_siwis` French, and so on). Qwen3 voices (`Ryan`, `Aiden`, `Vivian`, `Serena`, `Uncle_Fu`, `Dylan`, `Eric`, `Ono_Anna`, `Sohee`) can speak every language the model supports; pass `language` (for example `"de"`) so the text is read in that language. No shipped model has a Polish voice.
 
+**Choosing the language.** Pass `language` (for example `"ru"`) whenever you know it; the server cannot tell German from English, because both are written in Latin letters. Without `language` or `voice`, the default model's default voice reads the text. A text in another writing system is detected (Cyrillic, Chinese, Japanese, Korean, Devanagari, Greek, Arabic and so on):
+
+- with no `language`, the first model that speaks a language of that script is used (a Russian text goes to Qwen3 when Kokoro has no Russian);
+- a voice or language that cannot read the text is refused with an error that the agent sees, instead of being read wrongly;
+- if the chosen model's package is not installed, `speech_status` reports `error` with the install command.
+
 ## Troubleshooting
 
 Claude Desktop logs: `%APPDATA%\Claude\logs\mcp-server-tts.log` (Windows) or `~/Library/Logs/Claude/mcp-server-tts.log` (macOS).

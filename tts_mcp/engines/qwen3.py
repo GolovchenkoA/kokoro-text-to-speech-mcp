@@ -40,8 +40,13 @@ class Qwen3Engine:
             return self._model
 
     def _load_model(self):
-        import torch  # imported here: it is a dependency of qwen-tts
-        from qwen_tts import Qwen3TTSModel
+        try:
+            import torch  # imported here: it is a dependency of qwen-tts
+            from qwen_tts import Qwen3TTSModel
+        except ImportError as exc:
+            raise RuntimeError(
+                "The Qwen3-TTS model is not installed. Run: python -m pip install -r requirements-qwen3.txt"
+            ) from exc
 
         if self._device != "cpu":
             try:

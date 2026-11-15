@@ -28,7 +28,12 @@ class KokoroEngine:
     def _pipeline(self, lang_code: str):
         with self._lock:
             if lang_code not in self._pipelines:
-                from kokoro import KPipeline  # heavy import: defer until first use
+                try:
+                    from kokoro import KPipeline  # heavy import: defer until first use
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "The Kokoro model is not installed. Run: python -m pip install -r requirements-kokoro.txt"
+                    ) from exc
 
                 log.info("Loading Kokoro pipeline for lang_code=%s on %s", lang_code, self._device)
                 self._pipelines[lang_code] = KPipeline(lang_code=lang_code, repo_id=self._repo, device=self._device)

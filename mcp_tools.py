@@ -99,8 +99,11 @@ def register_tools(
             speed: Speaking rate, 0.5-2.0 (1.0 = normal). Some models ignore it.
             model: Model name from list_models. Optional: leave it out to use the default model,
                 or the first model that has the requested voice and language.
-            language: Language code of the text, e.g. "en", "de", "fr" (see list_models). Optional,
-                but give it when the text is not in the default model's language.
+            language: Language code of the text, e.g. "en", "de", "fr", "ru" (see list_models). Always
+                pass it when you know the language of the text: without it the default model's voice
+                reads the text, and a Latin-script text in another language is then read wrongly.
+                A text in another writing system (Cyrillic, Chinese, Korean, ...) is detected, and
+                a voice that cannot read it is refused with an error.
         """
         with _tool_errors():
             started = speech.start(text, voice, speed, model, language)

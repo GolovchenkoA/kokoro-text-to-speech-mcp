@@ -33,9 +33,9 @@ Copy a model entry, give it a new key and change `options` (for example `"repo"`
 | `voices` | no | Voices shared by every language of the model |
 | `languages` | yes | Languages of the model, in order; the first is the model's default language |
 
-Each language: `name`, `engine_code` (what the engine calls the language; defaults to the key), `default_voice` (defaults to the first voice) and optional `voices` (defaults to the model's `voices`). A language key such as `en-us` also answers to `en`.
+Each language: `name`, `engine_code` (what the engine calls the language; defaults to the key), `default_voice` (defaults to the first voice) and optional `voices` (defaults to the model's `voices`), and `detects_language` (`true` when the model finds the language of the text by itself, so it may read any writing system; used for an `auto` entry). A language key such as `en-us` also answers to `en`.
 
-A request with no model uses the default model, or the first model that has the requested voice and language.
+A request with no model uses the default model, or the first model that has the requested voice and language. A text in a non-Latin writing system (Cyrillic, Han, Hangul, ...) is detected and goes to the first model that has a language for it; a language that cannot read the text is refused (`tts_mcp/scripts.py` maps scripts to language codes, so use standard codes such as `ru`, `uk`, `zh`, `ja`, `ko` for your languages).
 
 ## Add a new model family (one new class)
 

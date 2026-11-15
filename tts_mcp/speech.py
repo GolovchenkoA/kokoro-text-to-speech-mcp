@@ -211,7 +211,7 @@ class SpeechService:
             raise InvalidSpeechRequest("text is empty")
         if len(text) > MAX_CHARS:
             raise InvalidSpeechRequest(f"text is too long ({len(text)} chars, max {MAX_CHARS})")
-        selection = self._catalog.resolve(model, voice, language)  # raises InvalidSpeechRequest
+        selection = self._catalog.resolve(model, voice, language, text)  # raises InvalidSpeechRequest
         speed = min(max(speed, 0.5), 2.0)
 
         with self._lock:

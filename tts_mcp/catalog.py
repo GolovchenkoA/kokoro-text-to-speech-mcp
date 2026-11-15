@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from tts_mcp.errors import InvalidSpeechRequest
+from tts_mcp.scripts import candidate_languages, detect_script
 
 
 class CatalogError(ValueError):
@@ -34,6 +35,7 @@ class Language:
     engine_code: str  # what the engine calls this language
     default_voice: str
     voices: tuple[str, ...]
+    detects_language: bool = False  # the model finds the language of the text itself (any script)
 
 
 @dataclass(frozen=True)
@@ -67,12 +69,22 @@ class Catalog:
     default_model: str
     models: Mapping[str, ModelSpec]
 
-    def resolve(self, model: str | None = None, voice: str | None = None, language: str | None = None) -> Selection:
+    def resolve(
+        self,
+        model: str | None = None,
+        voice: str | None = None,
+        language: str | None = None,
+        text: str | None = None,
+    ) -> Selection:
         """Pick the model, language and voice for a request. Anything left out is chosen from the file.
 
         Without `model`, the default model is tried first, then the others in file order, and the
         first one that has the voice and the language wins. Without `voice`, the language's default
         voice is used. With neither voice nor language, the model's first language is used.
+
+        With `text`, a text in a non-Latin writing system (for example Cyrillic) also decides: if no
+        language is given, the first model that speaks a language of that writing system is used, and
+        a choice that cannot read the text is refused instead of being spoken wrongly.
         """
         model, voice, language = (value.strip() or None if value else None for value in (model, voice, language))
         if model:
@@ -83,11 +95,43 @@ class Catalog:
             candidates = [self.models[self.default_model]]
             candidates += [spec for spec in self.models.values() if spec.id != self.default_model]
 
+        script = detect_script(text) if text else None
+        if script and not language:
+            for code in candidate_languages(script):
+                for spec in candidates:
+                    selection = self._pick(spec, voice, code)
+                    if selection is not None:
+                        return selection
+            raise SelectionError(self._explain_script(candidates, voice, script))
+
         for spec in candidates:
             selection = self._pick(spec, voice, language)
             if selection is not None:
+                self._check_script(selection, script)
                 return selection
         raise SelectionError(self._explain(candidates, voice, language))
+
+    def _check_script(self, selection: Selection, script: str | None) -> None:
+        """Refuse a language that cannot read a text written in `script`."""
+        if not script:
+            return
+        chosen = self.models[selection.model].languages[selection.language]
+        if chosen.detects_language or any(_matches(chosen.code, code) for code in candidate_languages(script)):
+            return
+        raise SelectionError(
+            f"the text is written in {script} script but {chosen.name} (voice '{selection.voice}', model "
+            f"'{selection.model}') cannot read it. Pass a language that matches the text, "
+            "or call list_models for what is available."
+        )
+
+    @staticmethod
+    def _explain_script(candidates: list[ModelSpec], voice: str | None, script: str) -> str:
+        which = f"model '{candidates[0].id}'" if len(candidates) == 1 else "any configured model"
+        wanted = f" with voice '{voice}'" if voice else ""
+        return (
+            f"the text is written in {script} script and {which}{wanted} has no language for it "
+            f"({', '.join(candidate_languages(script)) or 'unknown'}). Call list_models for what is available."
+        )
 
     @staticmethod
     def _pick(spec: ModelSpec, voice: str | None, language: str | None) -> Selection | None:
@@ -206,6 +250,7 @@ def _parse_language(code: str, raw: Any, shared_voices: tuple[str, ...], where: 
         engine_code=str(raw.get("engine_code", code)),
         default_voice=default_voice,
         voices=voices,
+        detects_language=bool(raw.get("detects_language", False)),
     )
 
 

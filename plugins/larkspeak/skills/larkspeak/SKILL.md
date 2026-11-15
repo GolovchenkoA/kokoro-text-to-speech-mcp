@@ -23,7 +23,7 @@ The server is registered as `tts`. Its tools may appear as `start_speech` or wit
 ## Rules for `start_speech`
 
 1. Pass the text exactly as the user wants it spoken. Do not summarize, shorten, translate or add words. If the user says "read your last answer", pass that answer unchanged.
-2. Pick a voice whose language matches the text. Call `list_models` when unsure, and pass `language` (for example `"de"`) to `start_speech` when the text is not in the default model's language. A voice in the wrong language sounds wrong or fails. Not every language has a voice; say so instead of guessing.
+2. Pick a voice whose language matches the text. Call `list_models` when unsure, and always pass `language` (for example `"de"` or `"ru"`) to `start_speech` when you know the language of the text; a voice in another language reads it wrongly. Texts in Cyrillic, Chinese, Korean and similar scripts are detected, and a voice that cannot read them is refused with an error, in which case tell the user. A voice in the wrong language sounds wrong or fails. Not every language has a voice; say so instead of guessing.
 3. Only change `speed` when the user asks (1.0 is normal).
 4. After starting, say in one short line how to control it. Do not repeat the text.
 5. Never start speech the user did not ask for.
