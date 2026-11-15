@@ -12,9 +12,9 @@ from typing import Protocol
 import numpy as np
 
 from tts_mcp.audio import open_speaker_stream
-from tts_mcp.catalog import Selection
+from tts_mcp.catalog import CatalogError, Selection
 from tts_mcp.config import MAX_CHARS
-from tts_mcp.errors import InvalidSpeechRequest
+from tts_mcp.errors import EngineUnavailable, InvalidSpeechRequest
 from tts_mcp.synthesis import SpeechSynthesizer
 
 log = logging.getLogger(__name__)
@@ -212,6 +212,13 @@ class SpeechService:
         if len(text) > MAX_CHARS:
             raise InvalidSpeechRequest(f"text is too long ({len(text)} chars, max {MAX_CHARS})")
         selection = self._catalog.resolve(model, voice, language, text)  # raises InvalidSpeechRequest
+        try:
+            self._synthesizer.ensure_ready(selection.model)
+        except (EngineUnavailable, CatalogError) as exc:  # tell the caller now, not through a failure in the background
+            language_name = self._catalog.models[selection.model].languages[selection.language].name
+            raise InvalidSpeechRequest(
+                f"The text would be spoken by model '{selection.model}' ({language_name}), but it cannot run: {exc}"
+            ) from exc
         speed = min(max(speed, 0.5), 2.0)
 
         with self._lock:

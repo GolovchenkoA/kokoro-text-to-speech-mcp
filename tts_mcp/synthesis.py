@@ -39,6 +39,12 @@ class SpeechSynthesizer:
                 self._engines[model] = self._factory(self.catalog.models[model], self._device)
             return self._engines[model]
 
+    def ensure_ready(self, model: str) -> None:
+        """Raise `EngineUnavailable` if the model cannot run here (its package is missing, for example)."""
+        check = getattr(self._engine(model), "check_ready", None)
+        if check is not None:
+            check()
+
     def synthesize(self, text: str, selection: Selection, speed: float) -> Iterator[np.ndarray]:
         """Yield float32 mono chunks as they are generated, at `sample_rate(selection.model)`."""
         spec = self.catalog.models[selection.model]

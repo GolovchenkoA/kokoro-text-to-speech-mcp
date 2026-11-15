@@ -148,13 +148,13 @@ def test_a_model_with_a_new_engine_is_added_by_the_file_only(make_app, fakes, tm
     assert "echo" in listed and "alice" in listed and "kokoro" not in listed
 
 
-def test_an_engine_that_cannot_be_loaded_is_reported_in_the_status(make_app, tmp_path):
+def test_an_engine_that_cannot_be_loaded_is_refused_at_once(make_app, tmp_path):
     data = with_default("kokoro")
     data["models"]["kokoro"] = {**data["models"]["kokoro"], "engine": "no.such.module:Engine"}
     app = make_app(models_file=write_models(tmp_path, data))
-    assert not call_tool_on(app, "start_speech", text="Hello").is_error
-    assert wait_until(lambda: status(app).startswith("error"))
-    assert "cannot load engine 'no.such.module:Engine'" in status(app)
+    result = call_tool_on(app, "start_speech", text="Hello")
+    assert result.is_error and "cannot load engine 'no.such.module:Engine'" in result.text
+    assert status(app).startswith("idle")  # nothing was started
 
 
 def test_an_invalid_models_file_stops_the_server_at_start(make_app, tmp_path):

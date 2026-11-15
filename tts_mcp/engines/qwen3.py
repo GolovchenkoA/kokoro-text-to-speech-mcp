@@ -10,7 +10,9 @@ import numpy as np
 
 from tts_mcp.catalog import ModelSpec
 from tts_mcp.devices import resolve_device
+from tts_mcp.engines.base import is_installed
 from tts_mcp.engines.text import split_text
+from tts_mcp.errors import EngineUnavailable
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +34,12 @@ class Qwen3Engine:
         self._device = resolve_device(device or spec.device)
         self._model = None
         self._lock = threading.Lock()
+
+    def check_ready(self) -> None:
+        if not (is_installed("qwen_tts") and is_installed("torch")):
+            raise EngineUnavailable(
+                "The Qwen3-TTS model is not installed. Run: python -m pip install -r requirements-qwen3.txt"
+            )
 
     def _load(self):
         with self._lock:

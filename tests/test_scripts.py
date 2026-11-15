@@ -116,11 +116,23 @@ def test_a_russian_text_with_a_wrong_language_is_refused_through_a_secondary_ins
     assert result.is_error and "written in Cyrillic script" in result.text
 
 
-def test_a_missing_model_package_is_explained_in_the_status(make_app, fakes, monkeypatch):
+def test_a_model_whose_package_is_missing_is_refused_at_once_with_the_install_command(make_app, fakes, monkeypatch):
     import sys
 
     monkeypatch.setitem(sys.modules, "qwen_tts", None)  # makes `import qwen_tts` fail
     app = make_app()
-    assert not call_tool_on(app, "start_speech", text=RUSSIAN).is_error
-    assert wait_until(lambda: call_tool_on(app, "speech_status").text.startswith("error"))
-    assert "pip install -r requirements-qwen3.txt" in call_tool_on(app, "speech_status").text
+    result = call_tool_on(app, "start_speech", text=RUSSIAN)
+    assert result.is_error
+    assert "model 'qwen3' (Russian)" in result.text and "cannot run" in result.text
+    assert "pip install -r requirements-qwen3.txt" in result.text
+    assert call_tool_on(app, "speech_status").text.startswith("idle")  # nothing was started, nothing fails later
+    assert not fakes.sd.streams
+
+
+def test_the_default_model_is_checked_too(make_app, fakes, monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "kokoro", None)
+    app = make_app()
+    result = call_tool_on(app, "start_speech", text="Hello")
+    assert result.is_error and "pip install -r requirements-kokoro.txt" in result.text

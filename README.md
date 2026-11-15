@@ -263,7 +263,7 @@ Call `list_models` for the exact languages and voices of every model. Kokoro voi
 
 - with no `language`, the first model that speaks a language of that script is used (a Russian text goes to Qwen3 when Kokoro has no Russian);
 - a voice or language that cannot read the text is refused with an error that the agent sees, instead of being read wrongly;
-- if the chosen model's package is not installed, `speech_status` reports `error` with the install command.
+- if the chosen model's package is not installed, `start_speech` is refused at once with an error that names the model and the install command (nothing is started and nothing fails later in the background).
 
 **Language check for Latin-script text.** `start_speech` goes through a guard (`tts_mcp/guards.py`) that detects the language of the text with [Lingua](https://github.com/pemistahl/lingua-py) (offline, on the CPU; Apache-2.0 per its package metadata) before anything is spoken:
 
