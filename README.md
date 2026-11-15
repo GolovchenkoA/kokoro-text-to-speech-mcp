@@ -77,7 +77,7 @@ python -m pip install --ignore-requires-python --only-binary=:all: --extra-index
 
 - The `--extra-index-url` line installs the smaller CPU-only PyTorch. Drop it for the default build (or if you want CUDA).
 - If installation fails on 3.14, use Python 3.12 instead (`py -3.12` / `python3.12`); the code is unchanged and `--ignore-requires-python` is no longer needed.
-- Optional second model, Qwen3-TTS (more languages): `python -m pip install -r requirements-qwen3.txt`. It downloads its weights from Hugging Face the first time a request uses it. It was added from its documentation and checked only against test fakes: it has not been run with the real model, and whether its dependencies install next to Kokoro's on every Python version is not verified.
+- Optional second model, Qwen3-TTS (more languages): `python -m pip install -r requirements-qwen3.txt`. Its weights are about 2.3 GB, see "Download the models in advance". Checked with the real model on a CPU (Windows, Python 3.14): it generates English and German speech and its output rate is 24 kHz. On that CPU it generated audio about four times slower than real time, so speech has pauses between sentences; a GPU is recommended for it. Not checked: a GPU, macOS, Linux, and installing it in the same environment as Kokoro (the dependency resolver reports no conflict).
 - Japanese and Chinese voices need extras: `python -m pip install --ignore-requires-python "misaki[ja]"` / `"misaki[zh]"`.
 
 ### 3. Install espeak-ng
@@ -146,6 +146,24 @@ Fully quit Claude Desktop (tray/menu bar icon → Quit, not just close the windo
 
 The first request is slow: it downloads and loads the speech model (~330 MB). Then try "pause", "continue" and "stop".
 
+## Download the models in advance
+
+Models are downloaded the first time they are used, which makes the first speech wait (minutes for the larger ones). To download them before that, for example while you have a good connection, run this in the virtual environment:
+
+```bash
+python -m tts_mcp.download                  # the default model (Kokoro, about 330 MB)
+python -m tts_mcp.download qwen3            # one named model (Qwen3-TTS, about 2.3 GB)
+python -m tts_mcp.download --all            # every model in models.json
+python -m tts_mcp.download --voice-control  # also the voice-control model (about 40 MB); can be combined with the others
+```
+
+On Windows use `.venv\Scripts\python.exe` in place of `python` if the environment is not activated. The command reads `models.json` (or `TTS_MODELS_FILE`) and fetches the `repo` of each model's `options`, so a model you add is downloaded the same way.
+
+- **Where the files go.** Hugging Face models go to `~/.cache/huggingface/hub` (`C:\Users\<you>\.cache\huggingface\hub` on Windows; set `HF_HOME` to move it). Every project and virtual environment on the machine shares this cache, so another project that loads the same model does not download it again. The voice-control model goes to `~/.cache/vosk`.
+- **Check it works offline.** After the download, set `HF_HUB_OFFLINE=1` in the server's `env` to make sure nothing is fetched at run time.
+- **A computer without internet.** Download on a connected computer, copy the cache folders above to the same place on the other computer, and set `HF_HUB_OFFLINE=1`. Voice control can also use a local Vosk model folder (`TTS_VOSK_MODEL`).
+- **Windows symlink warning.** Hugging Face may warn that symlinks are not supported. The files still download; they just use more disk space. Turning on Windows Developer Mode removes the warning.
+
 ## Voice control
 
 By default the server listens on the microphone for exactly four phrases (set `TTS_VOICE_CONTROL_ENABLED=0` to turn it off):
@@ -196,6 +214,7 @@ The process IDs are those of the Python interpreter (on Windows the venv launche
 | `tts_mcp/catalog.py` | Reads and validates the models file; picks model, language and voice for a request |
 | `tts_mcp/engines/` | One adapter class per model family (`kokoro.py`, `qwen3.py`), the engine contract and the factory |
 | `tts_mcp/devices.py` | GPU detection and the CPU fallback |
+| `tts_mcp/download.py` | `python -m tts_mcp.download`: fetch the models ahead of time |
 | `tts_mcp/synthesis.py` | `SpeechSynthesizer`: routes a request to the engine of the selected model (knows no model) |
 | `tts_mcp/speech.py` | `SpeechSession` (play, pause, resume, stop) and `SpeechService` (owns the active session) |
 | `tts_mcp/audio.py` | Speaker and microphone access (`sounddevice`) |

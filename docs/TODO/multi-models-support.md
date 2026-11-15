@@ -60,12 +60,15 @@ Design: Strategy (`SpeechEngine`), Factory by import path (`create_engine`), and
 - [x] Add the model to `models.json` with its languages and voices
 - [x] Add the dependency as an optional file (`requirements-qwen3.txt`)
 - [x] Document the install steps (README)
-- [ ] Run it with the real model: this was written from the Qwen3-TTS README and tested only with fakes. Check on a real machine:
-  - [ ] `qwen-tts` installs next to the Kokoro packages (dependency conflicts, Python version)
-  - [ ] the real sample rate (24 kHz is assumed; the engine resamples if it differs)
-  - [ ] the language names (`English`, `German`, ... were assumed from `Chinese` and `English` in the README; `model.get_supported_languages()` lists the real ones)
-  - [ ] speed and quality on a CPU, and that the CPU fallback works without a GPU
-  - [ ] the license of the weights file on Hugging Face (the report relies on the model metadata)
+- [x] Run it with the real model (2026-11-15, Windows, Python 3.14, CPU, in a separate virtual environment):
+  - [x] `qwen-tts` installs; the dependency resolver reports no conflict with the Kokoro packages. Not done: installing both in one environment and running them there
+  - [x] the real sample rate is 24 kHz, as in `models.json`
+  - [x] language names: the model lists them in lower case (`english`, `german`, ...); the names in `models.json` work. Speakers are lower case too
+  - [x] it generates English, German and auto-detected speech on a CPU: about four times slower than real time on that machine (12.6 s to generate 3.2 s of audio), so there are pauses between pieces. A GPU is recommended
+  - [x] the license of the weights on Hugging Face is Apache-2.0 (repository metadata; the LICENSE file itself was not read)
+  - [ ] run the whole server with Qwen3 and real speakers (the engine was run directly, not through the MCP server)
+  - [ ] the GPU path, macOS and Linux
+- [x] Add a command to download models in advance (`python -m tts_mcp.download`) and document it (README, "Download the models in advance")
 
 ### 2.4 Choosing and switching models
 
