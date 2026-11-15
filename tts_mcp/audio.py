@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from kokoro_mcp.config import MIC_RATE, SAMPLE_RATE
+from tts_mcp.config import MIC_RATE, SAMPLE_RATE
 
 
 def open_speaker_stream():
-    """Open (not yet start) a mono float32 output stream at Kokoro's sample rate."""
+    """Open (not yet start) a mono float32 output stream at the speech model's sample rate."""
     import sounddevice as sd
 
     return sd.OutputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32")

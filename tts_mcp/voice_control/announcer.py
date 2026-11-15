@@ -6,8 +6,8 @@ from collections.abc import Callable
 
 import numpy as np
 
-from kokoro_mcp.audio import play_blocking
-from kokoro_mcp.synthesis import SpeechSynthesizer
+from tts_mcp.audio import play_blocking
+from tts_mcp.synthesis import SpeechSynthesizer
 
 ANNOUNCE_VOICE = "af_heart"  # always English
 

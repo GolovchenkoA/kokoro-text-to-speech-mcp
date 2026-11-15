@@ -8,7 +8,7 @@ from collections.abc import Iterator
 
 import numpy as np
 
-from kokoro_mcp.voices import language_code
+from tts_mcp.voices import language_code
 
 log = logging.getLogger(__name__)
 

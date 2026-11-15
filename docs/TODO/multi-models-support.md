@@ -13,14 +13,14 @@ Related: step 1 of `docs/TODO/updates.md` (rename the project) overlaps with goa
 
 Descriptive text (README, docs) may still say which engine is used. Code and public names must not depend on it.
 
-- [ ] Rename the Python package `kokoro_mcp/` and fix all imports
-- [ ] Rename the MCP server name (`MCPServer("kokoro-tts")`) and the key in the Claude config examples
-- [ ] Rename the `KOKORO_*` environment variables to a neutral prefix, decide whether to keep the old names as aliases
-- [ ] Rename the key directory `~/.kokoro_mcp`, thread names, logger names and the pipe/socket names
-- [ ] Replace "Kokoro voice ID" and similar wording in tool and prompt descriptions (`mcp_tools.py`)
-- [ ] Update README and `docs/` so Kokoro appears only where it names the engine in use
-- [ ] Update tests (`tests/fakes.py`, `tests/conftest.py`, names and env vars)
-- [ ] Run the tests (`python -m pytest`) and start the server once to confirm
+- [x] Rename the Python package `kokoro_mcp/` and fix all imports (now `tts_mcp/`)
+- [x] Rename the MCP server name (`MCPServer("kokoro-tts")`) and the key in the Claude config examples (now `tts`)
+- [x] Rename the `KOKORO_*` environment variables to a neutral prefix, decide whether to keep the old names as aliases (now `TTS_*`, no aliases)
+- [x] Rename the key directory `~/.kokoro_mcp`, thread names, logger names and the pipe/socket names
+- [x] Replace "Kokoro voice ID" and similar wording in tool and prompt descriptions (`mcp_tools.py`)
+- [x] Update README and `docs/` so Kokoro appears only where it names the engine in use
+- [x] Update tests (`tests/fakes.py`, `tests/conftest.py`, names and env vars)
+- [ ] Run the tests (`python -m pytest`) and start the server once to confirm (tests pass, 107; the server has not been started yet)
 
 ## Goal 2. Support different text-to-speech models
 

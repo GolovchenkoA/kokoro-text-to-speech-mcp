@@ -10,9 +10,9 @@ from multiprocessing.connection import Client
 
 import pytest
 
-from kokoro_mcp import ipc
-from kokoro_mcp.ipc import PrimaryUnavailable, RemoteSpeechService
-from kokoro_mcp.voice_control.listener import THREAD_NAME
+from tts_mcp import ipc
+from tts_mcp.ipc import PrimaryUnavailable, RemoteSpeechService
+from tts_mcp.voice_control.listener import THREAD_NAME
 from tests.conftest import begin_speech, call_tool_on, long_text
 from tests.fakes import wait_until
 
@@ -102,8 +102,8 @@ def test_validation_errors_reach_the_model_through_a_secondary(pair):
 def test_only_the_primary_loads_the_models(pair, fakes):
     primary, secondary = pair
     call_tool_on(secondary, "start_speech", text="Hello")
-    assert wait_until(lambda: fakes.kokoro.calls)
-    assert len(fakes.kokoro.calls) == 1  # synthesized once, in the primary
+    assert wait_until(lambda: fakes.engine.calls)
+    assert len(fakes.engine.calls) == 1  # synthesized once, in the primary
     assert secondary.manager.runtime is None  # the secondary has no synthesizer, speech or listener
 
 

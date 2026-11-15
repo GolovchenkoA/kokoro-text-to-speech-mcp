@@ -5,13 +5,13 @@ from __future__ import annotations
 import os
 from multiprocessing.connection import Listener
 
-from kokoro_mcp.config import Settings
-from kokoro_mcp.ipc import PrimaryServer
-from kokoro_mcp.speech import SpeechService
-from kokoro_mcp.synthesis import SpeechSynthesizer
-from kokoro_mcp.voice_control.announcer import StatusAnnouncer
-from kokoro_mcp.voice_control.commands import VoiceCommandHandler
-from kokoro_mcp.voice_control.listener import VoiceControlListener
+from tts_mcp.config import Settings
+from tts_mcp.ipc import PrimaryServer
+from tts_mcp.speech import SpeechService
+from tts_mcp.synthesis import SpeechSynthesizer
+from tts_mcp.voice_control.announcer import StatusAnnouncer
+from tts_mcp.voice_control.commands import VoiceCommandHandler
+from tts_mcp.voice_control.listener import VoiceControlListener
 
 
 class PrimaryRuntime:

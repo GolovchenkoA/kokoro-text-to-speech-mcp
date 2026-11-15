@@ -7,7 +7,7 @@ description: Read text aloud on the user's local speakers and control it. Use wh
 
 Larkspeak speaks text on the user's own computer through the local text-to-speech MCP server. Audio is generated and played in memory; nothing is uploaded and no audio file is written.
 
-The server is registered as `kokoro-tts` today (it will change with the project rename). Its tools may appear as `start_speech` or with a prefix such as `mcp__kokoro-tts__start_speech`. Use whichever form your tool list shows. If no speech tool is available, tell the user the MCP server is not connected and point them to `docs/PLUGIN_INSTALLATION.md`. Do not try to speak in any other way.
+The server is registered as `tts`. Its tools may appear as `start_speech` or with a prefix such as `mcp__tts__start_speech`. Use whichever form your tool list shows. If no speech tool is available, tell the user the MCP server is not connected and point them to `docs/PLUGIN_INSTALLATION.md`. Do not try to speak in any other way.
 
 ## Tools (the same actions as the Larkspeak buttons)
 

@@ -7,16 +7,16 @@ import os
 import threading
 import time
 
-from kokoro_mcp.config import Settings
-from kokoro_mcp.ipc import (
+from tts_mcp.config import Settings
+from tts_mcp.ipc import (
     PrimaryUnavailable,
     RemoteSpeechService,
     endpoint_address,
     load_authkey,
     open_listener,
 )
-from kokoro_mcp.runtime import PrimaryRuntime
-from kokoro_mcp.speech import SpeechController
+from tts_mcp.runtime import PrimaryRuntime
+from tts_mcp.speech import SpeechController
 
 log = logging.getLogger(__name__)
 

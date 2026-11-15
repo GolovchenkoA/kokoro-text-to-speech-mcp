@@ -23,13 +23,13 @@ Give the project a unique name that does not mention Kokoro or any other tool or
 - [ ] Check that it is free: GitHub, PyPI, npm, Agensi.io and a web search
 - [ ] Rename the GitHub repository (GitHub redirects the old URL)
 - [ ] Rename the local project folder and update the PyCharm project and any run configurations
-- [ ] Rename the Python package folder `kokoro_mcp/` and fix all imports
-- [ ] Rename the MCP server (`MCPServer("kokoro-tts")` and the `kokoro-tts` key in the Claude config examples)
-- [ ] Rename the environment variables `KOKORO_*` to the new prefix (`KOKORO_VOICE_CONTROL_ENABLED`, `KOKORO_DEFAULT_VOICE`, `KOKORO_VAD*`, `KOKORO_SHARED_INSTANCE`, `KOKORO_IPC_DIR`, `KOKORO_VOSK_MODEL`, `KOKORO_MIC_DEVICE`, `KOKORO_DEVICE`) and decide whether to keep the old names as aliases
-- [ ] Rename the key directory `~/.kokoro_mcp`, the log logger names and the pipe/socket names
-- [ ] Update `README.md`, `docs/`, `.python-version` notes, tests and `skill-draft/`
-- [ ] Update the installed Claude Desktop / Claude Code config to the new name and path, then restart
-- [ ] Run the tests (`python -m pytest`) and start the server once to confirm the rename
+- [x] Rename the Python package folder `kokoro_mcp/` and fix all imports (done: now `tts_mcp/`; the code uses a neutral name on purpose, so a later project rename does not touch it)
+- [x] Rename the MCP server (`MCPServer("kokoro-tts")` and the `kokoro-tts` key in the Claude config examples) (done: now `tts`)
+- [x] Rename the environment variables `KOKORO_*` to the new prefix (`KOKORO_VOICE_CONTROL_ENABLED`, `KOKORO_DEFAULT_VOICE`, `KOKORO_VAD*`, `KOKORO_SHARED_INSTANCE`, `KOKORO_IPC_DIR`, `KOKORO_VOSK_MODEL`, `KOKORO_MIC_DEVICE`, `KOKORO_DEVICE`) and decide whether to keep the old names as aliases (done: now `TTS_*`, no aliases kept)
+- [x] Rename the key directory `~/.kokoro_mcp`, the log logger names and the pipe/socket names (done: `~/.tts_mcp`, `tts-mcp-*`, `tts-*` thread names)
+- [x] Update `README.md`, `docs/`, tests (done; the name Larkspeak is used in the README, the plugins and the plugin docs, not in the code). Still open: `.python-version` notes and `skill-draft/`
+- [ ] Update the installed Claude Desktop / Claude Code config to the new name and path, then restart (the server key is now `tts`, the buttons and the skill look for it)
+- [ ] Run the tests (`python -m pytest`) and start the server once to confirm the rename (tests pass, 107; the server has not been started yet)
 
 ### 2. Skill for the MCP server
 

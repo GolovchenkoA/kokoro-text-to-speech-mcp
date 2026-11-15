@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from kokoro_mcp.speech import SpeechService
-from kokoro_mcp.voice_control.announcer import StatusAnnouncer
+from tts_mcp.speech import SpeechService
+from tts_mcp.voice_control.announcer import StatusAnnouncer
 
 log = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-"""Kokoro TTS MCP server: wires the components together and runs the server over stdio."""
+"""Text-to-speech MCP server: wires the components together and runs the server over stdio."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from dataclasses import dataclass
 
 from mcp.server.mcpserver import MCPServer
 
-from kokoro_mcp.config import Settings
-from kokoro_mcp.instance import InstanceManager
+from tts_mcp.config import Settings
+from tts_mcp.instance import InstanceManager
 from mcp_tools import register_tools
 
 
@@ -23,7 +23,7 @@ class App:
 def build_app(settings: Settings, pid: int | None = None) -> App:
     """Create the components and register the tools (does not start anything)."""
     manager = InstanceManager(settings, pid)
-    mcp = MCPServer("kokoro-tts")
+    mcp = MCPServer("tts")
     register_tools(mcp, manager, settings.default_voice, settings.is_voice_control_enabled)
     return App(mcp=mcp, manager=manager)
 

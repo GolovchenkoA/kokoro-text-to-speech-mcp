@@ -24,7 +24,7 @@ from multiprocessing import AuthenticationError
 from multiprocessing.connection import Client, Connection, Listener
 from pathlib import Path
 
-from kokoro_mcp.speech import InvalidSpeechRequest, SpeechController
+from tts_mcp.speech import InvalidSpeechRequest, SpeechController
 
 log = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ def endpoint_address(ipc_dir: Path) -> str:
     """Pipe name / socket path for an IPC directory (one endpoint per directory)."""
     digest = hashlib.sha1(str(ipc_dir.resolve()).encode()).hexdigest()[:12]
     if sys.platform == "win32":
-        return rf"\\.\pipe\kokoro-mcp-{digest}"
-    return str(Path(tempfile.gettempdir()) / f"kokoro-mcp-{digest}.sock")
+        return rf"\\.\pipe\tts-mcp-{digest}"
+    return str(Path(tempfile.gettempdir()) / f"tts-mcp-{digest}.sock")
 
 
 def load_authkey(ipc_dir: Path) -> bytes:
@@ -114,7 +114,7 @@ def _within(timeout: float, fn):
         except BaseException as exc:
             box["error"] = exc
 
-    thread = threading.Thread(target=run, name="kokoro-ipc-connect", daemon=True)
+    thread = threading.Thread(target=run, name="tts-ipc-connect", daemon=True)
     thread.start()
     thread.join(timeout)
     if thread.is_alive():
@@ -134,7 +134,7 @@ class PrimaryServer:
         self._speech = speech
         self._pid = pid
         self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._accept_loop, name="kokoro-ipc-accept", daemon=True)
+        self._thread = threading.Thread(target=self._accept_loop, name="tts-ipc-accept", daemon=True)
         self._connections: set[Connection] = set()
         self._connections_lock = threading.Lock()
 
@@ -146,7 +146,7 @@ class PrimaryServer:
         self._stop.set()
         # Wake a blocked accept() with a throw-away connection. If the accept thread already exited
         # nobody answers it, so it must not be waited for: closing the listener releases it.
-        waker = threading.Thread(target=self._wake_accept, name="kokoro-ipc-wake", daemon=True)
+        waker = threading.Thread(target=self._wake_accept, name="tts-ipc-wake", daemon=True)
         waker.start()
         self._thread.join(1.0)
         self._listener.close()
@@ -181,7 +181,7 @@ class PrimaryServer:
             if self._stop.is_set():
                 conn.close()
                 return
-            threading.Thread(target=self._serve, args=(conn,), name="kokoro-ipc-client", daemon=True).start()
+            threading.Thread(target=self._serve, args=(conn,), name="tts-ipc-client", daemon=True).start()
 
     def _serve(self, conn: Connection) -> None:
         with self._connections_lock:

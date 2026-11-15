@@ -6,7 +6,7 @@ import collections
 
 import numpy as np
 
-from kokoro_mcp.config import Settings
+from tts_mcp.config import Settings
 
 VAD_PREROLL_BLOCKS = 3  # 300 ms of audio kept before speech starts
 VAD_HANGOVER_BLOCKS = 5  # 500 ms of silence tolerated before an utterance is closed
@@ -49,7 +49,7 @@ class EnergyGate:
 
 
 def make_gate(settings: Settings) -> EnergyGate | None:
-    """The gate configured by KOKORO_VAD / KOKORO_VAD_THRESHOLD, or None when the gate is off."""
+    """The gate configured by TTS_VAD / TTS_VAD_THRESHOLD, or None when the gate is off."""
     if settings.vad_mode == "off":
         return None
     return EnergyGate(settings.vad_threshold)

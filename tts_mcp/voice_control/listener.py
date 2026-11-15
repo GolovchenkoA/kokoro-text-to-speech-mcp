@@ -7,14 +7,14 @@ import logging
 import threading
 from collections.abc import Callable
 
-from kokoro_mcp.audio import open_microphone
-from kokoro_mcp.config import MIC_RATE, Settings
-from kokoro_mcp.voice_control.commands import VOICE_COMMANDS, VoiceCommandHandler
-from kokoro_mcp.voice_control.vad import EnergyGate, make_gate
+from tts_mcp.audio import open_microphone
+from tts_mcp.config import MIC_RATE, Settings
+from tts_mcp.voice_control.commands import VOICE_COMMANDS, VoiceCommandHandler
+from tts_mcp.voice_control.vad import EnergyGate, make_gate
 
 log = logging.getLogger(__name__)
 
-THREAD_NAME = "kokoro-voice-control"
+THREAD_NAME = "tts-voice-control"
 
 
 class VoiceControlListener:

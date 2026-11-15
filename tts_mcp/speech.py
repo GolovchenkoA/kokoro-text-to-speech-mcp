@@ -11,10 +11,10 @@ from typing import Protocol
 
 import numpy as np
 
-from kokoro_mcp.audio import open_speaker_stream
-from kokoro_mcp.config import MAX_CHARS, SAMPLE_RATE
-from kokoro_mcp.synthesis import SpeechSynthesizer
-from kokoro_mcp.voices import language_code
+from tts_mcp.audio import open_speaker_stream
+from tts_mcp.config import MAX_CHARS, SAMPLE_RATE
+from tts_mcp.synthesis import SpeechSynthesizer
+from tts_mcp.voices import language_code
 
 log = logging.getLogger(__name__)
 
@@ -83,8 +83,8 @@ class SpeechSession:
         self._running.set()
         # Open in the caller's thread so a missing/busy audio device fails fast.
         self._stream = open_stream()
-        self._generator = threading.Thread(target=self._generate, name="kokoro-generate", daemon=True)
-        self._player = threading.Thread(target=self._play, name="kokoro-play", daemon=True)
+        self._generator = threading.Thread(target=self._generate, name="tts-generate", daemon=True)
+        self._player = threading.Thread(target=self._play, name="tts-play", daemon=True)
         self._generator.start()
         self._player.start()
 
@@ -143,7 +143,7 @@ class SpeechSession:
                 if not self._put(chunk):
                     return
             if not produced:
-                raise RuntimeError("Kokoro produced no audio for this text")
+                raise RuntimeError("The speech model produced no audio for this text")
             self._put(None)  # end-of-speech marker
         except BaseException as exc:
             self._fail(exc)

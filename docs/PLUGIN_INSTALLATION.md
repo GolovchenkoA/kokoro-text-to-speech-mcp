@@ -4,7 +4,7 @@ Larkspeak has three parts. The server is required. The two plugins are independe
 
 | Part | What it is | Where it lives |
 |---|---|---|
-| Speech MCP server (required) | Python program that speaks text locally (speakers, optional voice commands) | repo root (`server.py`, `kokoro_mcp/`) |
+| Speech MCP server (required) | Python program that speaks text locally (speakers, optional voice commands) | repo root (`server.py`, `tts_mcp/`) |
 | Plugin `larkspeak` | A skill that tells the agent when and how to speak | `plugins/larkspeak/` |
 | Plugin `larkspeak-buttons` (optional) | Read aloud / pause / continue / stop buttons under each reply | `plugins/larkspeak-buttons/` |
 
@@ -51,23 +51,23 @@ On Python 3.14, add `--ignore-requires-python` to the second `pip install`. The 
 
 ## 3. Register the server with Claude
 
-Use absolute paths to the venv's Python and to `server.py`. The server name must be `kokoro-tts`, because the buttons and the skill look for that name.
+Use absolute paths to the venv's Python and to `server.py`. The server name must be `tts`, because the buttons and the skill look for that name.
 
 Claude Code, Windows:
 
 ```powershell
-claude mcp add kokoro-tts --scope user -- "C:\path\to\kokoro-text-to-speech-mcp\.venv\Scripts\python.exe" "C:\path\to\kokoro-text-to-speech-mcp\server.py"
+claude mcp add tts --scope user -- "C:\path\to\kokoro-text-to-speech-mcp\.venv\Scripts\python.exe" "C:\path\to\kokoro-text-to-speech-mcp\server.py"
 ```
 
 Claude Code, macOS and Linux:
 
 ```bash
-claude mcp add kokoro-tts --scope user -- /absolute/path/to/kokoro-text-to-speech-mcp/.venv/bin/python /absolute/path/to/kokoro-text-to-speech-mcp/server.py
+claude mcp add tts --scope user -- /absolute/path/to/kokoro-text-to-speech-mcp/.venv/bin/python /absolute/path/to/kokoro-text-to-speech-mcp/server.py
 ```
 
 Claude Desktop does not read this. Add the server to `claude_desktop_config.json` as described in the README (section "Connect it to Claude").
 
-Restart Claude, then check that `kokoro-tts` is listed and connected (`/mcp` in Claude Code).
+Restart Claude, then check that `tts` is listed and connected (`/mcp` in Claude Code).
 
 ## 4. Install the plugins
 
@@ -103,19 +103,19 @@ Restart Claude if it asks you to.
 | Symptom | Likely cause and fix |
 |---|---|
 | No icons under replies | `larkspeak-buttons` is not installed (the `larkspeak` skill does not add buttons) or Claude was not restarted. Run `/plugin` and check that `larkspeak-buttons` is enabled. |
-| Icon press shows "server is not connected" | The MCP server is not registered under the name `kokoro-tts`, or it failed to start. Repeat step 3 and check `/mcp`. |
+| Icon press shows "server is not connected" | The MCP server is not registered under the name `tts`, or it failed to start. Repeat step 3 and check `/mcp`. |
 | Server fails to start | The command must be the venv's Python with absolute paths. See "Troubleshooting" in the README. |
 | No sound, or only English sounds right | `espeak-ng` missing, or a voice that does not match the text language. |
-| Voice commands do nothing | Microphone permission denied, or voice control disabled with `KOKORO_VOICE_CONTROL_ENABLED=0`. |
+| Voice commands do nothing | Microphone permission denied, or voice control disabled with `TTS_VOICE_CONTROL_ENABLED=0`. |
 
 ## Update and remove
 
 - Update the server: `git pull`, then `python -m pip install -r requirements.txt` in the venv, then restart Claude.
 - Update the plugins: `/plugin marketplace update larkspeak`, then update `larkspeak` and `larkspeak-buttons`.
-- Remove only the buttons: `/plugin uninstall larkspeak-buttons@larkspeak`. Remove the skill: `/plugin uninstall larkspeak@larkspeak`. Remove the server: `claude mcp remove kokoro-tts`.
+- Remove only the buttons: `/plugin uninstall larkspeak-buttons@larkspeak`. Remove the skill: `/plugin uninstall larkspeak@larkspeak`. Remove the server: `claude mcp remove tts`.
 
 ## Notes
 
 - The plugin ships no `.mcp.json` yet, because the server is not installable with one command. After the server is published to PyPI, add `.mcp.json` to `plugins/larkspeak/` so a single plugin install starts it. See step 3 of `docs/TODO/updates.md`.
-- When the MCP server is renamed (step 1 of `docs/TODO/updates.md`), change `SERVER` in `plugins/larkspeak-buttons/hooks/register.tsx`, the server name in this file, and the name in `plugins/larkspeak/skills/larkspeak/SKILL.md`.
+- If the MCP server name `tts` is changed (`MCPServer("tts")` in `server.py`), change `SERVER` in `plugins/larkspeak-buttons/hooks/register.tsx`, the name in this file, and the name in `plugins/larkspeak/skills/larkspeak/SKILL.md`.
 - Commands for installing the plugin were written from the plugin documentation and have not been run on a clean computer.

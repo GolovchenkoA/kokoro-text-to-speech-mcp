@@ -1,6 +1,6 @@
 import type { Register } from 'claude-code'
 
-const SERVER = 'kokoro-tts'
+const SERVER = 'tts'
 
 type Action = {
   id: string
@@ -31,7 +31,7 @@ export const register: Register = on => {
           $.ui.toast(`${label} failed`)
         }
       } catch {
-        $.ui.toast(`${label}: the kokoro-tts server is not connected`)
+        $.ui.toast(`${label}: the tts server is not connected`)
       }
     }
 

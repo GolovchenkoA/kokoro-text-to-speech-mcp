@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from kokoro_mcp.config import Settings
-from kokoro_mcp.voice_control.vad import VAD_HANGOVER_BLOCKS, VAD_PREROLL_BLOCKS, EnergyGate, make_gate
+from tts_mcp.config import Settings
+from tts_mcp.voice_control.vad import VAD_HANGOVER_BLOCKS, VAD_PREROLL_BLOCKS, EnergyGate, make_gate
 
 
 def block(amplitude: int) -> bytes:

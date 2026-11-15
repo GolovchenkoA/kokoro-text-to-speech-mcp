@@ -1,4 +1,4 @@
-"""End-to-end tests of the MCP tools: real MCP client <-> server, fake audio device and Kokoro."""
+"""End-to-end tests of the MCP tools: real MCP client <-> server, fake audio device and speech engine."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from kokoro_mcp.config import MAX_CHARS, SAMPLE_RATE
+from tts_mcp.config import MAX_CHARS, SAMPLE_RATE
 from mcp_tools import speech_started_message
 from tests.conftest import call_tool_on, long_text
 from tests.fakes import CHUNK_FRAMES, wait_until
@@ -164,17 +164,17 @@ def test_start_speech_returns_before_playback_ends(call_tool, fakes):
     assert status(call_tool) != "finished"
 
 
-def test_voice_and_speed_are_passed_to_kokoro(call_tool, fakes):
+def test_voice_and_speed_are_passed_to_the_engine(call_tool, fakes):
     call_tool("start_speech", text="Bonjour", voice="ff_siwis", speed=1.3)
-    assert wait_until(lambda: fakes.kokoro.calls)
-    call = fakes.kokoro.calls[0]
+    assert wait_until(lambda: fakes.engine.calls)
+    call = fakes.engine.calls[0]
     assert (call["lang"], call["voice"], call["speed"]) == ("f", "ff_siwis", 1.3)
 
 
 def test_speed_is_clamped(call_tool, fakes):
     call_tool("start_speech", text="Hi", speed=9)
-    assert wait_until(lambda: fakes.kokoro.calls)
-    assert fakes.kokoro.calls[0]["speed"] == 2.0
+    assert wait_until(lambda: fakes.engine.calls)
+    assert fakes.engine.calls[0]["speed"] == 2.0
 
 
 # -- pause / resume / stop -------------------------------------------------------------------

@@ -10,10 +10,10 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from kokoro_mcp.ipc import PrimaryUnavailable
-from kokoro_mcp.speech import InvalidSpeechRequest, SpeechController
-from kokoro_mcp.voice_control.commands import VOICE_COMMANDS
-from kokoro_mcp.voices import voices_by_language
+from tts_mcp.ipc import PrimaryUnavailable
+from tts_mcp.speech import InvalidSpeechRequest, SpeechController
+from tts_mcp.voice_control.commands import VOICE_COMMANDS
+from tts_mcp.voices import voices_by_language
 
 
 DEFAULT_MESSAGES = "the last message"
@@ -88,7 +88,7 @@ def register_tools(
         Args:
             text: The text to speak, exactly as it should be heard (plain text only, not a file
                 path or URL).
-            voice: Kokoro voice ID, e.g. "af_heart", "bm_george", "ff_siwis". The first letter
+            voice: Voice ID, e.g. "af_heart", "bm_george", "ff_siwis". The first letter
                 selects the language (see list_voices).
             speed: Speaking rate, 0.5-2.0 (1.0 = normal).
         """
@@ -139,5 +139,5 @@ def register_tools(
 
     @mcp.tool()
     def list_voices() -> dict[str, list[str]]:
-        """List Kokoro voice IDs grouped by language. Prefix: af/am = US female/male, bf/bm = UK, etc."""
+        """List voice IDs grouped by language. Prefix: af/am = US female/male, bf/bm = UK, etc."""
         return voices_by_language()

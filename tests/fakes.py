@@ -1,4 +1,4 @@
-"""In-process fakes for the audio device, Kokoro and Vosk so the tests need no hardware or models."""
+"""In-process fakes for the audio device, the speech engine and Vosk so the tests need no hardware or models."""
 
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ class FakeSoundDevice(types.ModuleType):
         return None
 
 
-class FakeKokoro(types.ModuleType):
+class FakeEngine(types.ModuleType):
     """Fake `kokoro` module. Each non-empty line of text becomes one audio chunk."""
 
     def __init__(self) -> None:

@@ -7,23 +7,23 @@ from types import SimpleNamespace
 import pytest
 from mcp import Client
 
-from kokoro_mcp.config import Settings
+from tts_mcp.config import Settings
 from server import build_app
-from tests.fakes import FakeKokoro, FakeSoundDevice, FakeVosk, wait_until
+from tests.fakes import FakeEngine, FakeSoundDevice, FakeVosk, wait_until
 
 
 @pytest.fixture
 def fakes(monkeypatch, tmp_path):
-    """Replace audio, Kokoro and Vosk with fakes (the modules are imported lazily by the server)."""
+    """Replace audio, the speech engine and Vosk with fakes (the modules are imported lazily by the server)."""
     vosk = FakeVosk()
-    sd, kokoro = FakeSoundDevice(vosk.phrases), FakeKokoro()
+    sd, engine = FakeSoundDevice(vosk.phrases), FakeEngine()
     monkeypatch.setitem(sys.modules, "sounddevice", sd)
-    monkeypatch.setitem(sys.modules, "kokoro", kokoro)
+    monkeypatch.setitem(sys.modules, "kokoro", engine)
     monkeypatch.setitem(sys.modules, "vosk", vosk)
     workdir = tmp_path / "work"
     workdir.mkdir()
     monkeypatch.chdir(workdir)  # lets tests assert that nothing is written to disk
-    return SimpleNamespace(sd=sd, kokoro=kokoro, vosk=vosk, tmp_path=tmp_path, workdir=workdir)
+    return SimpleNamespace(sd=sd, engine=engine, vosk=vosk, tmp_path=tmp_path, workdir=workdir)
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def get_prompt_text(app):
 
 
 def long_text(lines: int = 40) -> str:
-    """Text that produces `lines` audio chunks (~0.5 s each) with the fake Kokoro."""
+    """Text that produces `lines` audio chunks (~0.5 s each) with the fake engine."""
     return "\n".join(f"Sentence number {i}." for i in range(lines))
 
 
