@@ -33,6 +33,7 @@ class Settings:
     mic_device: str | None = None
     vad_mode: str = "energy"  # "energy" or "off"
     vad_threshold: float = DEFAULT_VAD_THRESHOLD
+    language_check: bool = True  # refuse texts in a language no model speaks; TTS_LANGUAGE_CHECK=0 turns it off
     shared_instance: bool = True  # False: every server copy works on its own (no primary/secondary)
     ipc_dir: Path | None = None  # where the shared key lives; None = ~/.tts_mcp
 
@@ -69,6 +70,7 @@ class Settings:
             mic_device=env.get("TTS_MIC_DEVICE") or None,
             vad_mode=vad_mode,
             vad_threshold=vad_threshold,
+            language_check=env.get("TTS_LANGUAGE_CHECK", "1").lower() not in _FALSE_VALUES,
             shared_instance=env.get("TTS_SHARED_INSTANCE", "1").lower() not in _FALSE_VALUES,
             ipc_dir=Path(env["TTS_IPC_DIR"]) if env.get("TTS_IPC_DIR") else None,
         )

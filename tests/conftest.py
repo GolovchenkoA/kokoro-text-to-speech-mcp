@@ -40,13 +40,15 @@ def make_app(fakes):
     Apps made in one test share the same IPC directory, so the first becomes the primary instance
     and later ones become secondaries. Pass `pid=` to give an app a fake process id. Voice control
     (on by default in Settings) is off here unless a test passes `is_voice_control_enabled=True`.
+    The language check is off too, unless a test passes a fake `detector=`.
     """
     apps = []
 
-    def _make(pid: int | None = None, activate: bool = True, **settings):
+    def _make(pid: int | None = None, activate: bool = True, detector=None, **settings):
         settings.setdefault("ipc_dir", fakes.tmp_path / "ipc")
         settings.setdefault("is_voice_control_enabled", False)
-        app = build_app(Settings(**settings), pid)
+        settings.setdefault("language_check", detector is not None)  # off unless a test brings a detector
+        app = build_app(Settings(**settings), pid, detector)
         apps.append(app)
         if activate:
             app.manager.activate()

@@ -214,6 +214,9 @@ The process IDs are those of the Python interpreter (on Windows the venv launche
 | `models.json` | The models file: models, engines, languages, voices, defaults |
 | `tts_mcp/catalog.py` | Reads and validates the models file; picks model, language and voice for a request |
 | `tts_mcp/engines/` | One adapter class per model family (`kokoro.py`, `qwen3.py`), the engine contract and the factory |
+| `tts_mcp/guards.py` | `GuardedSpeech` wrapper and the `LanguageGuard` that checks `start_speech` requests |
+| `tts_mcp/detectors.py` | Language detectors (`LinguaDetector`) behind a small protocol |
+| `tts_mcp/scripts.py` | Writing-system detection (Cyrillic, Han, Hangul, ...) used by the catalogue |
 | `tts_mcp/devices.py` | GPU detection and the CPU fallback |
 | `tts_mcp/download.py` | `python -m tts_mcp.download`: fetch the models ahead of time |
 | `tts_mcp/synthesis.py` | `SpeechSynthesizer`: routes a request to the engine of the selected model (knows no model) |
@@ -248,6 +251,7 @@ Set these in the `env` block of the Claude Desktop config.
 | `TTS_MIC_DEVICE` | system default | Microphone name or index |
 | `TTS_VAD` | `energy` | `energy` runs Vosk only while someone is speaking; `off` feeds it all audio |
 | `TTS_VAD_THRESHOLD` | `500` | Speech level (RMS, int16 scale) that opens the gate; lower it if commands are missed |
+| `TTS_LANGUAGE_CHECK` | `1` | `0` turns off the language check of `start_speech` texts (see Languages and voices) |
 | `TTS_SHARED_INSTANCE` | `1` | `0` disables primary/secondary sharing: every server copy works on its own |
 | `TTS_IPC_DIR` | `~/.tts_mcp` | Where the shared key for the local channel is stored |
 
@@ -260,6 +264,17 @@ Call `list_models` for the exact languages and voices of every model. Kokoro voi
 - with no `language`, the first model that speaks a language of that script is used (a Russian text goes to Qwen3 when Kokoro has no Russian);
 - a voice or language that cannot read the text is refused with an error that the agent sees, instead of being read wrongly;
 - if the chosen model's package is not installed, `speech_status` reports `error` with the install command.
+
+**Language check for Latin-script text.** `start_speech` goes through a guard (`tts_mcp/guards.py`) that detects the language of the text with [Lingua](https://github.com/pemistahl/lingua-py) (offline, on the CPU; Apache-2.0 per its package metadata) before anything is spoken:
+
+- only the first 200 characters are examined, and a text shorter than 120 characters is not checked at all and counts as supported;
+- a language that no model in `models.json` speaks (Polish, for example) is refused with an error that names the language and lists the supported ones;
+- a voice or language that cannot read the detected language is refused; if you name no language, voice or model, the detected language is passed on so a model that speaks it is chosen (German goes to Qwen3);
+- when the detector is not sure (confidence below 0.8) the text counts as supported;
+- the detector loads in the background at start (about 5 s, about 50 MB) and each check takes a few milliseconds;
+- `TTS_LANGUAGE_CHECK=0` turns the check off. If `lingua-language-detector` is not installed the check is off and the server logs a warning.
+
+Only `start_speech` is guarded; the other tools pass straight through.
 
 ## Troubleshooting
 

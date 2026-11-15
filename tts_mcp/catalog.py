@@ -58,10 +58,13 @@ class Selection:
     language: str
 
 
-def _matches(code: str, wanted: str) -> bool:
+def language_matches(code: str, wanted: str) -> bool:
     """`en` matches `en`, `en-us` and `en-gb`; `en-us` matches only itself."""
     wanted = wanted.lower()
     return code == wanted or code.startswith(wanted + "-")
+
+
+_matches = language_matches
 
 
 @dataclass(frozen=True)
