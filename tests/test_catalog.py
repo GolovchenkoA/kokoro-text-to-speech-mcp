@@ -6,13 +6,12 @@ import json
 
 import pytest
 
-from tests.fakes import all_models_data
 from tts_mcp.catalog import CatalogError, Selection, SelectionError, default_models_file, load_catalog, parse_catalog
 
 
 @pytest.fixture(scope="module")
 def catalog():
-    return parse_catalog(all_models_data())
+    return load_catalog(default_models_file())
 
 
 def model(**changes):
@@ -30,38 +29,11 @@ def catalog_of(models, default="m"):
 
 
 # -- the shipped file ----------------------------------------------------------------------------
-def test_the_shipped_file_has_kokoro_on_and_qwen3_off():
-    shipped = load_catalog(default_models_file())
-    assert shipped.default_model == "kokoro"
-    assert set(shipped.models) == {"kokoro"}  # qwen3 is in the file but disabled
-    both = load_catalog(default_models_file(), include_disabled=True)
-    assert {model_id: spec.enabled for model_id, spec in both.models.items()} == {"kokoro": True, "qwen3": False}
-
-
-def test_the_models_of_the_file_can_all_be_enabled(catalog):
+def test_the_shipped_file_lists_both_models_and_a_default(catalog):
     assert catalog.default_model == "kokoro"
     assert set(catalog.models) == {"kokoro", "qwen3"}
     assert catalog.models["kokoro"].engine == "tts_mcp.engines.kokoro:KokoroEngine"
     assert catalog.models["qwen3"].sample_rate == 24000
-
-
-def test_a_disabled_model_is_not_offered_or_used():
-    data = {
-        "default_model": "a",
-        "models": {"a": model(), "b": {**model(), "enabled": False}},
-    }
-    enabled = parse_catalog(data)
-    assert set(enabled.models) == {"a"} and "b" not in enabled.describe()["models"]
-    with pytest.raises(SelectionError, match="unknown model 'b'"):
-        enabled.resolve(model="b")
-    assert set(parse_catalog(data, include_disabled=True).models) == {"a", "b"}
-
-
-def test_the_default_model_cannot_be_disabled_and_one_model_must_stay_on():
-    with pytest.raises(CatalogError, match="'default_model' must name one of the enabled models: b"):
-        parse_catalog({"default_model": "a", "models": {"a": {**model(), "enabled": False}, "b": model()}})
-    with pytest.raises(CatalogError, match="no model is enabled"):
-        parse_catalog({"default_model": "a", "models": {"a": {**model(), "enabled": False}}})
 
 
 def test_voices_shared_by_a_model_are_available_in_every_language(catalog):
@@ -142,7 +114,7 @@ def test_defaults_are_filled_in_for_optional_fields():
         ([], "top level"),
         ({"default_model": "m"}, "'models' must be a non-empty object"),
         ({"default_model": "m", "models": {}}, "'models' must be a non-empty object"),
-        ({"default_model": "x", "models": {"m": model()}}, "'default_model' must name one of the enabled models: m"),
+        ({"default_model": "x", "models": {"m": model()}}, "'default_model' must name one of the models: m"),
         ({"default_model": "m", "models": {"m": model(engine="nocolon")}}, "'engine' must be an import path"),
         ({"default_model": "m", "models": {"m": model(engine="a:b:c")}}, "'engine' must be an import path"),
         ({"default_model": "m", "models": {"m": model(sample_rate=0)}}, "'sample_rate' must be a positive integer"),

@@ -6,8 +6,8 @@ import pytest
 
 import server
 from tests.conftest import call_tool_on
-from tests.fakes import all_models_data, wait_until
-from tts_mcp.catalog import SelectionError, default_models_file, parse_catalog
+from tests.fakes import wait_until
+from tts_mcp.catalog import SelectionError, default_models_file, load_catalog
 from tts_mcp.config import Settings
 from tts_mcp.detectors import Detection
 from tts_mcp.guards import (
@@ -45,7 +45,7 @@ class FakeDetector:
 
 @pytest.fixture(scope="module")
 def catalog():
-    return parse_catalog(all_models_data())
+    return load_catalog(default_models_file())
 
 
 def guard_for(catalog, detection):
@@ -297,23 +297,3 @@ def test_the_guard_with_lingua_refuses_polish_and_accepts_german_and_russian(cat
     assert guard.check(request(long("en"))).language == "en"
     short = request(SAMPLES["pl"][:100])
     assert guard.check(short) is short  # under 120 characters: not checked
-
-
-# -- the shipped configuration: only Kokoro is on ------------------------------------------------
-RUSSIAN = Detection("ru", "Russian", 0.99)
-
-
-def test_with_the_shipped_models_file_a_russian_text_is_reported_as_unsupported(make_app, fakes):
-    app = make_app(detector=FakeDetector(RUSSIAN), models_file=default_models_file())
-    result = call_tool_on(app, "start_speech", text=long_text())
-    assert result.is_error
-    assert "detected as Russian (ru) and it is not supported by the model" in result.text
-    assert "American English" in result.text and "Qwen" not in result.text
-    assert not fakes.qwen.calls and not fakes.sd.streams
-
-
-def test_with_the_shipped_models_file_a_short_russian_text_is_refused_by_its_script(make_app, fakes):
-    app = make_app(models_file=default_models_file())  # no detector: only the script check can see it
-    result = call_tool_on(app, "start_speech", text="Привет, это короткий тест речи.")
-    assert result.is_error and "Cyrillic" in result.text and "has no language for it" in result.text
-    assert not fakes.qwen.calls and not fakes.engine.calls

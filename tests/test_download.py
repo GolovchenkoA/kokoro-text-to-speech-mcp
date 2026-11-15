@@ -35,11 +35,11 @@ def test_without_arguments_the_default_model_is_downloaded(hub, capsys):
 
 
 def test_models_can_be_named_or_all_can_be_asked_for(hub):
-    assert download.main(["qwen3"]) == 0  # a disabled model can still be fetched, before it is enabled
+    assert download.main(["qwen3"]) == 0
     assert hub == ["Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"]
     hub.clear()
     assert download.main(["--all"]) == 0
-    assert hub == ["hexgrad/Kokoro-82M"]  # --all means the enabled models; qwen3 is off in the shipped file
+    assert hub == ["hexgrad/Kokoro-82M", "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"]
 
 
 def test_an_unknown_model_is_rejected_before_anything_is_downloaded(hub, capsys):

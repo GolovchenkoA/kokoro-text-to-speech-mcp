@@ -28,7 +28,6 @@ Copy a model entry, give it a new key and change `options` (for example `"repo"`
 | `engine` | yes | Import path `package.module:ClassName` of the engine class |
 | `sample_rate` | yes | Hz of the audio the engine yields; the speakers are opened at this rate |
 | `name` | no | Display name |
-| `enabled` | no | `false` keeps the model in the file but not offered or used (default `true`). The default model must be enabled |
 | `device` | no | `auto` (default), `cpu`, `cuda` or `mps`. A device that is missing falls back to the CPU |
 | `options` | no | Free-form object passed to the engine (for example `repo`) |
 | `voices` | no | Voices shared by every language of the model |

@@ -40,19 +40,18 @@ def _download_voice_control_model(path: str | None) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tts_mcp.download", description=__doc__.split("\n")[0])
     parser.add_argument("models", nargs="*", help="model ids from the models file (default: the default model)")
-    parser.add_argument("--all", action="store_true", help="download every enabled model in the models file")
+    parser.add_argument("--all", action="store_true", help="download every model in the models file")
     parser.add_argument("--voice-control", action="store_true", help="also download the voice-control model")
     args = parser.parse_args(argv)
 
     settings = Settings.from_env()
     try:
-        catalog = load_catalog(settings.resolved_models_file, include_disabled=True)  # a disabled model can be fetched before it is enabled
+        catalog = load_catalog(settings.resolved_models_file)
     except CatalogError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    enabled = [model_id for model_id, spec in catalog.models.items() if spec.enabled]
-    ids = args.models or (enabled if args.all else [catalog.default_model])
+    ids = args.models or (list(catalog.models) if args.all else [catalog.default_model])
     unknown = [model_id for model_id in ids if model_id not in catalog.models]
     if unknown:
         print(f"error: unknown model(s): {', '.join(unknown)}. Known: {', '.join(catalog.models)}", file=sys.stderr)

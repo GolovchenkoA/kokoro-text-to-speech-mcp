@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from types import SimpleNamespace
 
@@ -11,7 +10,7 @@ from mcp import Client
 from tts_mcp import devices
 from tts_mcp.config import Settings
 from server import build_app
-from tests.fakes import all_models_data, FakeEngine, FakeQwen, FakeSoundDevice, FakeTorch, FakeVosk, wait_until
+from tests.fakes import FakeEngine, FakeQwen, FakeSoundDevice, FakeTorch, FakeVosk, wait_until
 
 
 @pytest.fixture
@@ -26,13 +25,11 @@ def fakes(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "vosk", vosk)
     gpus = {"available": frozenset({"cpu"})}  # tests change this to pretend a GPU exists
     monkeypatch.setattr(devices, "available_devices", lambda: gpus["available"])
-    models_file = tmp_path / "all-models.json"
-    models_file.write_text(json.dumps(all_models_data()), encoding="utf-8")
     workdir = tmp_path / "work"
     workdir.mkdir()
     monkeypatch.chdir(workdir)  # lets tests assert that nothing is written to disk
     return SimpleNamespace(
-        sd=sd, engine=engine, qwen=qwen, vosk=vosk, gpus=gpus, tmp_path=tmp_path, workdir=workdir, models_file=models_file
+        sd=sd, engine=engine, qwen=qwen, vosk=vosk, gpus=gpus, tmp_path=tmp_path, workdir=workdir
     )
 
 
@@ -49,7 +46,6 @@ def make_app(fakes):
 
     def _make(pid: int | None = None, activate: bool = True, detector=None, **settings):
         settings.setdefault("ipc_dir", fakes.tmp_path / "ipc")
-        settings.setdefault("models_file", fakes.models_file)  # every model enabled, as the tests need them
         settings.setdefault("is_voice_control_enabled", False)
         settings.setdefault("language_check", detector is not None)  # off unless a test brings a detector
         app = build_app(Settings(**settings), pid, detector)

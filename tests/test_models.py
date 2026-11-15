@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import call_tool_on
-from tests.fakes import CHUNK_FRAMES, EchoEngine, all_models_data, wait_until
+from tests.fakes import CHUNK_FRAMES, EchoEngine, wait_until
 from tts_mcp.devices import resolve_device
 from tts_mcp.engines.text import split_text
 
-REAL_MODELS = all_models_data()
+REAL_MODELS = json.loads((Path(__file__).resolve().parent.parent / "models.json").read_text("utf-8"))
 
 
 def write_models(tmp_path, data, name="models.json"):
