@@ -18,12 +18,12 @@ The server is registered as `tts`. Its tools may appear as `start_speech` or wit
 | Continue | `resume_speech` | The user says "continue speech" |
 | Stop | `stop_speech` | Discards the rest of the text |
 | Ask what it is doing | `speech_status` | Playing, paused, stopped or idle |
-| Choose a voice | `list_voices` | Voices grouped by language |
+| Choose a model and voice | `list_models` | Models, with their languages and voices |
 
 ## Rules for `start_speech`
 
 1. Pass the text exactly as the user wants it spoken. Do not summarize, shorten, translate or add words. If the user says "read your last answer", pass that answer unchanged.
-2. Pick a voice whose language matches the text. Call `list_voices` when unsure. A voice in the wrong language sounds wrong or fails. Not every language has a voice; say so instead of guessing.
+2. Pick a voice whose language matches the text. Call `list_models` when unsure, and pass `language` (for example `"de"`) to `start_speech` when the text is not in the default model's language. A voice in the wrong language sounds wrong or fails. Not every language has a voice; say so instead of guessing.
 3. Only change `speed` when the user asks (1.0 is normal).
 4. After starting, say in one short line how to control it. Do not repeat the text.
 5. Never start speech the user did not ask for.

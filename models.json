@@ -1,0 +1,54 @@
+{
+  "default_model": "kokoro",
+  "models": {
+    "kokoro": {
+      "name": "Kokoro-82M",
+      "engine": "tts_mcp.engines.kokoro:KokoroEngine",
+      "sample_rate": 24000,
+      "device": "auto",
+      "options": { "repo": "hexgrad/Kokoro-82M" },
+      "languages": {
+        "en-us": {
+          "name": "American English",
+          "engine_code": "a",
+          "default_voice": "af_heart",
+          "voices": ["af_heart", "af_bella", "af_nicole", "af_sarah", "af_sky", "am_adam", "am_michael", "am_fenrir", "am_puck"]
+        },
+        "en-gb": {
+          "name": "British English",
+          "engine_code": "b",
+          "default_voice": "bf_emma",
+          "voices": ["bf_emma", "bf_isabella", "bm_george", "bm_fable"]
+        },
+        "es": { "name": "Spanish", "engine_code": "e", "default_voice": "ef_dora", "voices": ["ef_dora", "em_alex"] },
+        "fr": { "name": "French", "engine_code": "f", "default_voice": "ff_siwis", "voices": ["ff_siwis"] },
+        "hi": { "name": "Hindi", "engine_code": "h", "default_voice": "hf_alpha", "voices": ["hf_alpha", "hf_beta", "hm_omega"] },
+        "it": { "name": "Italian", "engine_code": "i", "default_voice": "if_sara", "voices": ["if_sara", "im_nicola"] },
+        "ja": { "name": "Japanese", "engine_code": "j", "default_voice": "jf_alpha", "voices": ["jf_alpha", "jf_gongitsune", "jm_kumo"] },
+        "pt-br": { "name": "Brazilian Portuguese", "engine_code": "p", "default_voice": "pf_dora", "voices": ["pf_dora", "pm_alex"] },
+        "zh": { "name": "Mandarin Chinese", "engine_code": "z", "default_voice": "zf_xiaobei", "voices": ["zf_xiaobei", "zf_xiaoni", "zm_yunjian"] }
+      }
+    },
+    "qwen3": {
+      "name": "Qwen3-TTS 0.6B (preset voices)",
+      "engine": "tts_mcp.engines.qwen3:Qwen3Engine",
+      "sample_rate": 24000,
+      "device": "auto",
+      "options": { "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "max_chars": 300 },
+      "voices": ["Ryan", "Aiden", "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric", "Ono_Anna", "Sohee"],
+      "languages": {
+        "auto": { "name": "Any language (detected by the model)", "engine_code": "Auto", "default_voice": "Ryan" },
+        "en": { "name": "English", "engine_code": "English", "default_voice": "Ryan" },
+        "zh": { "name": "Chinese", "engine_code": "Chinese", "default_voice": "Vivian" },
+        "ja": { "name": "Japanese", "engine_code": "Japanese", "default_voice": "Ono_Anna" },
+        "ko": { "name": "Korean", "engine_code": "Korean", "default_voice": "Sohee" },
+        "de": { "name": "German", "engine_code": "German", "default_voice": "Ryan" },
+        "fr": { "name": "French", "engine_code": "French", "default_voice": "Ryan" },
+        "ru": { "name": "Russian", "engine_code": "Russian", "default_voice": "Ryan" },
+        "pt": { "name": "Portuguese", "engine_code": "Portuguese", "default_voice": "Ryan" },
+        "es": { "name": "Spanish", "engine_code": "Spanish", "default_voice": "Ryan" },
+        "it": { "name": "Italian", "engine_code": "Italian", "default_voice": "Ryan" }
+      }
+    }
+  }
+}

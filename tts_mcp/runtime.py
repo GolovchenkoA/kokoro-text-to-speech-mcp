@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from multiprocessing.connection import Listener
 
+from tts_mcp.catalog import Catalog
 from tts_mcp.config import Settings
 from tts_mcp.ipc import PrimaryServer
 from tts_mcp.speech import SpeechService
@@ -20,10 +21,11 @@ class PrimaryRuntime:
     def __init__(
         self,
         settings: Settings,
+        catalog: Catalog,
         pid: int | None = None,
         endpoint: tuple[Listener, str, bytes] | None = None,
     ) -> None:
-        synthesizer = SpeechSynthesizer(settings.device)
+        synthesizer = SpeechSynthesizer(catalog, settings.device)
         self.speech = SpeechService(synthesizer)
         handler = VoiceCommandHandler(self.speech, StatusAnnouncer(synthesizer))
         self.voice_control = VoiceControlListener(settings, handler)

@@ -9,7 +9,7 @@ import numpy as np
 from tts_mcp.audio import play_blocking
 from tts_mcp.synthesis import SpeechSynthesizer
 
-ANNOUNCE_VOICE = "af_heart"  # always English
+ANNOUNCE_LANGUAGE = "en"  # status is always announced in English, by the first model that speaks it
 
 
 class StatusAnnouncer:
@@ -18,12 +18,13 @@ class StatusAnnouncer:
     def __init__(
         self,
         synthesizer: SpeechSynthesizer,
-        play: Callable[[np.ndarray], None] = play_blocking,
+        play: Callable[[np.ndarray, int], None] = play_blocking,
     ) -> None:
         self._synthesizer = synthesizer
         self._play = play
 
     def announce(self, message: str) -> None:
-        chunks = list(self._synthesizer.synthesize(message, ANNOUNCE_VOICE, 1.0))
+        selection = self._synthesizer.catalog.resolve(language=ANNOUNCE_LANGUAGE)
+        chunks = list(self._synthesizer.synthesize(message, selection, 1.0))
         if chunks:
-            self._play(np.concatenate(chunks))
+            self._play(np.concatenate(chunks), self._synthesizer.sample_rate(selection.model))

@@ -6,12 +6,12 @@ import time
 
 import pytest
 
-from tts_mcp.config import MAX_CHARS, SAMPLE_RATE
+from tts_mcp.config import MAX_CHARS
 from mcp_tools import speech_started_message
 from tests.conftest import call_tool_on, long_text
-from tests.fakes import CHUNK_FRAMES, wait_until
+from tests.fakes import CHUNK_FRAMES, SAMPLE_RATE, wait_until
 
-EXPECTED_TOOLS = {"start_speech", "pause_speech", "resume_speech", "stop_speech", "speech_status", "list_voices"}
+EXPECTED_TOOLS = {"start_speech", "pause_speech", "resume_speech", "stop_speech", "speech_status", "list_models"}
 
 
 def status(call_tool) -> str:
@@ -32,7 +32,7 @@ def test_server_exposes_exactly_the_expected_tools(list_tools):
 def test_start_speech_accepts_text_only(list_tools):
     tool = next(t for t in list_tools() if t.name == "start_speech")
     properties = set(tool.input_schema["properties"])
-    assert properties == {"text", "voice", "speed"}  # no path / url / file parameters
+    assert properties == {"text", "voice", "speed", "model", "language"}  # no path / url / file parameters
     assert tool.input_schema["required"] == ["text"]
 
 
@@ -100,12 +100,11 @@ def test_tool_description_requires_verbatim_text_and_keeping_labels(list_tools):
     assert '"User message:"' in tool.description and '"Assistant message:"' in tool.description
 
 
-def test_list_voices_groups_by_language(call_tool):
-    result = call_tool("list_voices")
+def test_list_models_shows_models_languages_and_voices(call_tool):
+    result = call_tool("list_models")
     assert not result.is_error
-    for language in ("American English", "British English", "Mandarin Chinese"):
-        assert language in result.text
-    assert "af_heart" in result.text
+    for expected in ("default_model", "kokoro", "qwen3", "American English", "German", "af_heart", "Ryan"):
+        assert expected in result.text
 
 
 # -- start_speech result: how to control the speech ----------------------------------------
@@ -127,8 +126,8 @@ def test_start_speech_result_lists_voice_commands_when_voice_control_is_on(make_
 
 
 def test_started_message_format():
-    assert speech_started_message(120, "af_heart", is_voice_control_enabled=False).splitlines() == [
-        "Speech started (120 characters, voice af_heart). It plays in the background.",
+    assert speech_started_message(120, "kokoro", "af_heart", is_voice_control_enabled=False).splitlines() == [
+        "Speech started (120 characters, model kokoro, voice af_heart). It plays in the background.",
         "Control it:",
         "- pause: ask me to pause the speech (tool pause_speech)",
         "- continue: ask me to continue the speech (tool resume_speech)",

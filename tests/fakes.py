@@ -10,6 +10,7 @@ import types
 
 import numpy as np
 
+SAMPLE_RATE = 24_000  # rate of the models in the default models.json
 CHUNK_FRAMES = 12_000  # 0.5 s at 24 kHz = 10 playback slices of 50 ms
 WRITE_DELAY = 0.003  # seconds per slice written, so playback takes a measurable time
 
@@ -111,9 +112,12 @@ class FakeEngine(types.ModuleType):
         class KPipeline:
             def __init__(self, lang_code: str, repo_id: str, **kwargs) -> None:
                 self.lang_code = lang_code
+                self.device = kwargs.get("device")
 
             def __call__(self, text, voice, speed, split_pattern=None):
-                calls.append({"lang": self.lang_code, "text": text, "voice": voice, "speed": speed})
+                calls.append(
+                    {"lang": self.lang_code, "text": text, "voice": voice, "speed": speed, "device": self.device}
+                )
                 if "BOOM" in text:
                     raise RuntimeError("synthesis failed")
                 for line in text.split("\n"):
@@ -121,6 +125,43 @@ class FakeEngine(types.ModuleType):
                         yield line, "phonemes", np.full(CHUNK_FRAMES, 0.1, dtype=np.float32)
 
         self.KPipeline = KPipeline
+
+
+class FakeTorch(types.ModuleType):
+    """Fake `torch` module: just the dtypes the Qwen engine passes on."""
+
+    def __init__(self) -> None:
+        super().__init__("torch")
+        self.bfloat16 = "bfloat16"
+        self.float32 = "float32"
+
+
+class FakeQwen(types.ModuleType):
+    """Fake `qwen_tts` module. A piece of text becomes one waveform; `fail_on_gpu` makes loading on a GPU fail."""
+
+    def __init__(self, rate: int = SAMPLE_RATE) -> None:
+        super().__init__("qwen_tts")
+        self.loads: list[dict] = []
+        self.calls: list[dict] = []
+        self.fail_on_gpu = False
+        self.rate = rate
+        outer = self
+
+        class Qwen3TTSModel:
+            @classmethod
+            def from_pretrained(cls, repo, device_map, dtype):
+                outer.loads.append({"repo": repo, "device_map": device_map, "dtype": dtype})
+                if outer.fail_on_gpu and device_map != "cpu":
+                    raise RuntimeError("CUDA out of memory")
+                return cls()
+
+            def generate_custom_voice(self, text, language, speaker):
+                outer.calls.append({"text": text, "language": language, "speaker": speaker})
+                if "BOOM" in text:
+                    raise RuntimeError("synthesis failed")
+                return [np.full(outer.rate // 2, 0.1, dtype=np.float32)], outer.rate
+
+        self.Qwen3TTSModel = Qwen3TTSModel
 
 
 class FakeVosk(types.ModuleType):
@@ -181,3 +222,17 @@ def wait_until(condition, timeout: float = 5.0, interval: float = 0.01) -> bool:
 
 def thread_names() -> set[str]:
     return {t.name for t in threading.enumerate()}
+
+
+class EchoEngine:
+    """A speech engine that exists only in a test's models file: proves a model is added by config alone."""
+
+    created: list[tuple[str, str | None]] = []
+    calls: list[dict] = []
+
+    def __init__(self, spec, device) -> None:
+        EchoEngine.created.append((spec.id, device))
+
+    def synthesize(self, text, voice, language, speed):
+        EchoEngine.calls.append({"text": text, "voice": voice, "language": language})
+        yield np.full(CHUNK_FRAMES // 2, 0.1, dtype=np.float32)

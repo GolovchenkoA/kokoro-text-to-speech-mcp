@@ -109,6 +109,12 @@ Selling an AI voice system on the EU market (Poland): since **2 August 2026**, A
 
 ---
 
+## Status in the app
+
+Of the models in this report only **Kokoro-82M** (default) and **Qwen3-TTS 0.6B CustomVoice** are in `models.json`. Chatterbox, MOSS-TTS-Nano and Supertonic 3 are not added. Qwen3-TTS is used for plain text-to-speech with its preset voices (no voice cloning). It was implemented from the Qwen3-TTS README and tested with fakes only; the open checks are listed in `docs/TODO/multi-models-support.md` (2.3). The EU AI Act watermarking point above is not implemented for any model.
+
+---
+
 ## Sources
 
 - [hexgrad/Kokoro-82M model card](https://huggingface.co/hexgrad/Kokoro-82M)

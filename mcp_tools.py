@@ -10,10 +10,10 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
+from tts_mcp.catalog import Catalog
 from tts_mcp.ipc import PrimaryUnavailable
 from tts_mcp.speech import InvalidSpeechRequest, SpeechController
 from tts_mcp.voice_control.commands import VOICE_COMMANDS
-from tts_mcp.voices import voices_by_language
 
 
 DEFAULT_MESSAGES = "the last message"
@@ -39,10 +39,10 @@ SPEAK_MESSAGES_PROMPT = (
 )
 
 
-def speech_started_message(characters: int, voice: str, is_voice_control_enabled: bool) -> str:
+def speech_started_message(characters: int, model: str, voice: str, is_voice_control_enabled: bool) -> str:
     """Result of start_speech: confirms the start and says how to pause, continue and stop."""
     lines = [
-        f"Speech started ({characters} characters, voice {voice}). It plays in the background.",
+        f"Speech started ({characters} characters, model {model}, voice {voice}). It plays in the background.",
         "Control it:",
         "- pause: ask me to pause the speech (tool pause_speech)",
         "- continue: ask me to continue the speech (tool resume_speech)",
@@ -65,12 +65,18 @@ def _tool_errors() -> Iterator[None]:
 
 
 def register_tools(
-    mcp: MCPServer, speech: SpeechController, default_voice: str, is_voice_control_enabled: bool
+    mcp: MCPServer, speech: SpeechController, catalog: Catalog, is_voice_control_enabled: bool
 ) -> None:
     """Register all tools on `mcp`, bound to the given speech backend."""
 
     @mcp.tool()
-    def start_speech(text: str, voice: str = default_voice, speed: float = 1.0) -> str:
+    def start_speech(
+        text: str,
+        voice: str | None = None,
+        speed: float = 1.0,
+        model: str | None = None,
+        language: str | None = None,
+    ) -> str:
         """Start speaking text aloud on the local speakers and return immediately.
 
         The speech runs in the background and can be controlled with pause_speech, resume_speech
@@ -88,13 +94,19 @@ def register_tools(
         Args:
             text: The text to speak, exactly as it should be heard (plain text only, not a file
                 path or URL).
-            voice: Voice ID, e.g. "af_heart", "bm_george", "ff_siwis". The first letter
-                selects the language (see list_voices).
-            speed: Speaking rate, 0.5-2.0 (1.0 = normal).
+            voice: Voice ID from list_models. Optional: leave it out to get the default voice for
+                the language.
+            speed: Speaking rate, 0.5-2.0 (1.0 = normal). Some models ignore it.
+            model: Model name from list_models. Optional: leave it out to use the default model,
+                or the first model that has the requested voice and language.
+            language: Language code of the text, e.g. "en", "de", "fr" (see list_models). Optional,
+                but give it when the text is not in the default model's language.
         """
         with _tool_errors():
-            characters = speech.start(text, voice, speed)
-        return speech_started_message(characters, voice, is_voice_control_enabled)
+            started = speech.start(text, voice, speed, model, language)
+        return speech_started_message(
+            started["characters"], started["model"], started["voice"], is_voice_control_enabled
+        )
 
     @mcp.prompt(
         name="speak-last-reply",
@@ -138,6 +150,10 @@ def register_tools(
             return speech.describe()
 
     @mcp.tool()
-    def list_voices() -> dict[str, list[str]]:
-        """List voice IDs grouped by language. Prefix: af/am = US female/male, bf/bm = UK, etc."""
-        return voices_by_language()
+    def list_models() -> dict:
+        """List the text-to-speech models with the languages and voices of each, and the default model.
+
+        Use it to pick a voice whose language matches the text, or to see which models can speak a
+        language. Each language shows its default voice, used when start_speech gets none.
+        """
+        return catalog.describe()

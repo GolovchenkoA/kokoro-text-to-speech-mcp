@@ -8,13 +8,13 @@ import threading
 
 import pytest
 
-from tts_mcp.config import MIC_RATE, SAMPLE_RATE, Settings
+from tts_mcp.config import MIC_RATE, Settings
 from tts_mcp.voice_control.commands import VOICE_COMMANDS
 from tts_mcp.voice_control.listener import THREAD_NAME
 from tts_mcp.voice_control.vad import VAD_HANGOVER_BLOCKS, VAD_PREROLL_BLOCKS
 from server import build_app
 from tests.conftest import begin_speech
-from tests.fakes import thread_names, wait_until
+from tests.fakes import SAMPLE_RATE, thread_names, wait_until
 
 PHRASES = ["pause speech", "continue speech", "stop speech", "status speech"]
 

@@ -12,7 +12,8 @@ from tts_mcp.config import DEFAULT_VAD_THRESHOLD, Settings
 def test_defaults():
     settings = Settings.from_env({})
     assert settings == Settings()
-    assert settings.default_voice == "af_heart"
+    assert settings.models_file is None
+    assert settings.resolved_models_file.name == "models.json"
     assert settings.is_voice_control_enabled  # on by default
     assert settings.vad_mode == "energy"
     assert settings.vad_threshold == DEFAULT_VAD_THRESHOLD
@@ -21,7 +22,7 @@ def test_defaults():
 def test_values_are_read_from_the_environment():
     settings = Settings.from_env(
         {
-            "TTS_DEFAULT_VOICE": "bm_george",
+            "TTS_MODELS_FILE": "/etc/tts/models.json",
             "TTS_DEVICE": "cpu",
             "TTS_VOICE_CONTROL_ENABLED": "0",
             "TTS_VOSK_MODEL": "/models/vosk",
@@ -33,7 +34,7 @@ def test_values_are_read_from_the_environment():
         }
     )
     assert settings == Settings(
-        default_voice="bm_george",
+        models_file=Path("/etc/tts/models.json"),
         device="cpu",
         is_voice_control_enabled=False,
         vosk_model="/models/vosk",

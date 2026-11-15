@@ -1,4 +1,7 @@
-"""Constants and environment-driven settings."""
+"""Constants and environment-driven settings.
+
+Which models exist and which voices they have is not here: see ``models.json`` and ``tts_mcp.catalog``.
+"""
 
 from __future__ import annotations
 
@@ -8,12 +11,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from tts_mcp.catalog import default_models_file
+
 log = logging.getLogger(__name__)
 
-SAMPLE_RATE = 24_000  # output sample rate of the speech model
 MIC_RATE = 16_000  # microphone sample rate used for voice control
 MAX_CHARS = 20_000  # longest text accepted by one start_speech call
-DEFAULT_VOICE = "af_heart"
 DEFAULT_VAD_THRESHOLD = 500.0  # RMS on the int16 scale; speech is typically 1000+, a quiet room < 300
 
 _FALSE_VALUES = ("0", "false", "no", "off")
@@ -23,8 +26,8 @@ _FALSE_VALUES = ("0", "false", "no", "off")
 class Settings:
     """Runtime configuration. Build it with `Settings.from_env()` or pass the fields directly."""
 
-    default_voice: str = DEFAULT_VOICE
-    device: str | None = None  # "cpu", "cuda", "mps" or None for auto
+    models_file: Path | None = None  # the models catalogue; None = models.json next to the package
+    device: str | None = None  # "cpu", "cuda", "mps" or None: use each model's own setting (default auto)
     is_voice_control_enabled: bool = True  # microphone commands; TTS_VOICE_CONTROL_ENABLED=0 turns them off
     vosk_model: str | None = None  # local Vosk model folder; None downloads the small English model
     mic_device: str | None = None
@@ -36,6 +39,10 @@ class Settings:
     @property
     def resolved_ipc_dir(self) -> Path:
         return self.ipc_dir or Path.home() / ".tts_mcp"
+
+    @property
+    def resolved_models_file(self) -> Path:
+        return self.models_file or default_models_file()
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -55,7 +62,7 @@ class Settings:
                 log.warning("Invalid TTS_VAD_THRESHOLD=%r, using %s", raw_threshold, DEFAULT_VAD_THRESHOLD)
 
         return cls(
-            default_voice=env.get("TTS_DEFAULT_VOICE", DEFAULT_VOICE),
+            models_file=Path(env["TTS_MODELS_FILE"]) if env.get("TTS_MODELS_FILE") else None,
             device=env.get("TTS_DEVICE") or None,
             is_voice_control_enabled=env.get("TTS_VOICE_CONTROL_ENABLED", "1").lower() not in _FALSE_VALUES,
             vosk_model=env.get("TTS_VOSK_MODEL") or None,

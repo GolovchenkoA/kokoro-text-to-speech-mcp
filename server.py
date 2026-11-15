@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from mcp.server.mcpserver import MCPServer
 
+from tts_mcp.catalog import load_catalog
 from tts_mcp.config import Settings
 from tts_mcp.instance import InstanceManager
 from mcp_tools import register_tools
@@ -22,9 +23,10 @@ class App:
 
 def build_app(settings: Settings, pid: int | None = None) -> App:
     """Create the components and register the tools (does not start anything)."""
-    manager = InstanceManager(settings, pid)
+    catalog = load_catalog(settings.resolved_models_file)  # fails fast with a clear message
+    manager = InstanceManager(settings, catalog, pid)
     mcp = MCPServer("tts")
-    register_tools(mcp, manager, settings.default_voice, settings.is_voice_control_enabled)
+    register_tools(mcp, manager, catalog, settings.is_voice_control_enabled)
     return App(mcp=mcp, manager=manager)
 
 

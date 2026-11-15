@@ -2,17 +2,28 @@
 
 MCP server that gives Claude Desktop (or any MCP client) a local, offline text-to-speech tool. It speaks text on your speakers, can be paused, resumed and stopped, and can optionally be controlled by voice.
 
-## Speech engine
+## Speech models
 
-The server speaks with one local speech model, today **Kokoro-82M** (the only engine so far). The code is written so the engine is confined to `tts_mcp/synthesis.py` and `tts_mcp/voices.py`; supporting other models is planned, see [docs/TODO/multi-models-support.md](docs/TODO/multi-models-support.md). Rules every engine must meet are in [docs/APP_REQUIREMENTS.md](docs/APP_REQUIREMENTS.md). Where this README names Kokoro (installation, voices, languages), it describes the current engine.
+Which text-to-speech model speaks is decided by **`models.json`** (next to `server.py`; point `TTS_MODELS_FILE` at another file to use your own). The file lists the models, the languages each one speaks, the voices for each language, the default model, and the default voice for every model and language. Nothing in the code names a model, so switching the default model, or adding a model that uses an existing engine class, is a change to that file only. A model family with a new engine needs one new engine class and a line in the file, see [docs/ADDING_A_MODEL.md](docs/ADDING_A_MODEL.md).
+
+Models shipped in `models.json`:
+
+| Model id | Model | Languages | Needs |
+|---|---|---|---|
+| `kokoro` (default) | Kokoro-82M | American and British English, Spanish, French, Hindi, Italian, Japanese, Brazilian Portuguese, Mandarin Chinese | `requirements.txt`, `espeak-ng` |
+| `qwen3` | Qwen3-TTS 0.6B, preset voices only | English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian (any language with "auto") | `requirements-qwen3.txt` |
+
+When a request names no model, the server uses the default model, or the first model that has the requested voice and language. A model is loaded only when it is first used. Every model must meet the rules in [docs/APP_REQUIREMENTS.md](docs/APP_REQUIREMENTS.md): commercial-use license, audio only in memory, and CPU fallback.
+
+**Devices.** Each model runs on the GPU when there is one (`"device": "auto"` in the file, or `TTS_DEVICE`) and on the CPU otherwise. A requested GPU that is missing, or a GPU that fails to load a model, falls back to the CPU with a log message.
 
 ## Tools
 
-- `start_speech(text, voice="af_heart", speed=1.0)` → speaks the text on the local speakers and returns immediately. Text only (no file paths or URLs); audio is generated and played entirely in memory via `sounddevice`, nothing is written to disk. Starting a new speech stops the current one. The result also tells how to pause, continue and stop it (and lists the voice commands when voice control is on)
+- `start_speech(text, voice=None, speed=1.0, model=None, language=None)` → speaks the text on the local speakers and returns immediately. Text only (no file paths or URLs); audio is generated and played entirely in memory via `sounddevice`, nothing is written to disk. Starting a new speech stops the current one. `voice`, `model` and `language` are optional: what is left out is chosen from the models file (see below). The result also tells how to pause, continue and stop it (and lists the voice commands when voice control is on)
 - `pause_speech()` / `resume_speech()` → hold and continue the current speech (takes effect within ~0.1 s)
 - `stop_speech()` → interrupt the current speech and discard the rest
 - `speech_status()` → `idle`, `playing`, `paused`, `finished`, `stopped` or `error`
-- `list_voices()` → voice IDs grouped by language
+- `list_models()` → the models with the languages and voices of each, and the default model
 
 Prompt:
 - `speak-last-reply [messages]` → pick it from the prompt/slash-command menu to have Claude read recent messages aloud. `messages` is free text such as `last 5 messages` or `last fifth messages`; the default is the last message (Claude's previous answer). One message is one message sent by you or by Claude, counted separately. The model collects them oldest first and calls `start_speech` once with them unchanged. When several messages are read, each starts with its owner label, `User message:` or `Assistant message:`; a single message has no label. The prompt adds no limits (the server still rejects text over 20,000 characters). The model follows these instructions; the server cannot read the conversation itself, so the spoken text is only as exact as the model's copy.
@@ -66,6 +77,7 @@ python -m pip install --ignore-requires-python --only-binary=:all: --extra-index
 
 - The `--extra-index-url` line installs the smaller CPU-only PyTorch. Drop it for the default build (or if you want CUDA).
 - If installation fails on 3.14, use Python 3.12 instead (`py -3.12` / `python3.12`); the code is unchanged and `--ignore-requires-python` is no longer needed.
+- Optional second model, Qwen3-TTS (more languages): `python -m pip install -r requirements-qwen3.txt`. It downloads its weights from Hugging Face the first time a request uses it. It was added from its documentation and checked only against test fakes: it has not been run with the real model, and whether its dependencies install next to Kokoro's on every Python version is not verified.
 - Japanese and Chinese voices need extras: `python -m pip install --ignore-requires-python "misaki[ja]"` / `"misaki[zh]"`.
 
 ### 3. Install espeak-ng
@@ -101,7 +113,7 @@ Use **absolute paths** to the venv's Python and to `server.py`. Do not rely on `
       "command": "C:\\path\\to\\kokoro-text-to-speech-mcp\\.venv\\Scripts\\python.exe",
       "args": ["C:\\path\\to\\kokoro-text-to-speech-mcp\\server.py"],
       "env": {
-        "TTS_DEFAULT_VOICE": "af_heart"
+        "TTS_DEVICE": "auto"
       }
     }
   }
@@ -117,7 +129,7 @@ Use **absolute paths** to the venv's Python and to `server.py`. Do not rely on `
       "command": "/absolute/path/to/kokoro-text-to-speech-mcp/.venv/bin/python",
       "args": ["/absolute/path/to/kokoro-text-to-speech-mcp/server.py"],
       "env": {
-        "TTS_DEFAULT_VOICE": "af_heart"
+        "TTS_DEVICE": "auto"
       }
     }
   }
@@ -180,8 +192,11 @@ The process IDs are those of the Python interpreter (on Windows the venv launche
 | `server.py` | Entry point: builds the components, registers the tools, runs the server |
 | `mcp_tools.py` | The `@mcp.tool()` definitions (thin adapters over `SpeechService`) |
 | `tts_mcp/config.py` | Constants and `Settings` (environment variables) |
-| `tts_mcp/voices.py` | Language and voice catalogue |
-| `tts_mcp/synthesis.py` | `SpeechSynthesizer`: text to audio chunks (the only module that loads the speech model) |
+| `models.json` | The models file: models, engines, languages, voices, defaults |
+| `tts_mcp/catalog.py` | Reads and validates the models file; picks model, language and voice for a request |
+| `tts_mcp/engines/` | One adapter class per model family (`kokoro.py`, `qwen3.py`), the engine contract and the factory |
+| `tts_mcp/devices.py` | GPU detection and the CPU fallback |
+| `tts_mcp/synthesis.py` | `SpeechSynthesizer`: routes a request to the engine of the selected model (knows no model) |
 | `tts_mcp/speech.py` | `SpeechSession` (play, pause, resume, stop) and `SpeechService` (owns the active session) |
 | `tts_mcp/audio.py` | Speaker and microphone access (`sounddevice`) |
 | `tts_mcp/voice_control/` | `EnergyGate` (VAD), `VoiceCommandHandler`, `StatusAnnouncer`, `VoiceControlListener` |
@@ -206,8 +221,8 @@ Set these in the `env` block of the Claude Desktop config.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `TTS_DEFAULT_VOICE` | `af_heart` | Voice used when none is given |
-| `TTS_DEVICE` | auto | `cpu`, `cuda` or `mps` |
+| `TTS_MODELS_FILE` | `models.json` next to `server.py` | The models file: models, languages, voices, defaults |
+| `TTS_DEVICE` | per model (`auto`) | `cpu`, `cuda` or `mps` for all models; falls back to the CPU when not available |
 | `TTS_VOICE_CONTROL_ENABLED` | on | `0` (or `false`, `no`, `off`) turns microphone voice control off |
 | `TTS_VOSK_MODEL` | auto-download | Path to a local Vosk model folder |
 | `TTS_MIC_DEVICE` | system default | Microphone name or index |
@@ -216,9 +231,9 @@ Set these in the `env` block of the Claude Desktop config.
 | `TTS_SHARED_INSTANCE` | `1` | `0` disables primary/secondary sharing: every server copy works on its own |
 | `TTS_IPC_DIR` | `~/.tts_mcp` | Where the shared key for the local channel is stored |
 
-## Languages
+## Languages and voices
 
-With the current engine, voice IDs start with a language letter and the text must match it: `a` American English, `b` British English, `e` Spanish, `f` French, `h` Hindi, `i` Italian, `j` Japanese, `p` Brazilian Portuguese, `z` Mandarin Chinese. There is no Polish voice. Call `list_voices` for the IDs.
+Call `list_models` for the exact languages and voices of every model. Kokoro voice IDs are language specific (`af_heart` American English, `bm_george` British English, `ff_siwis` French, and so on). Qwen3 voices (`Ryan`, `Aiden`, `Vivian`, `Serena`, `Uncle_Fu`, `Dylan`, `Eric`, `Ono_Anna`, `Sohee`) can speak every language the model supports; pass `language` (for example `"de"`) so the text is read in that language. No shipped model has a Polish voice.
 
 ## Troubleshooting
 

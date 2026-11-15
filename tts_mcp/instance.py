@@ -7,6 +7,7 @@ import os
 import threading
 import time
 
+from tts_mcp.catalog import Catalog
 from tts_mcp.config import Settings
 from tts_mcp.ipc import (
     PrimaryUnavailable,
@@ -27,8 +28,9 @@ class InstanceManager:
     """A `SpeechController` that either does the work itself (primary / standalone) or forwards it to
     the primary instance (secondary). If the primary goes away, a secondary takes over on its next call."""
 
-    def __init__(self, settings: Settings, pid: int | None = None) -> None:
+    def __init__(self, settings: Settings, catalog: Catalog, pid: int | None = None) -> None:
         self._settings = settings
+        self._catalog = catalog
         self._pid = pid or os.getpid()
         self._lock = threading.RLock()
         self._runtime: PrimaryRuntime | None = None
@@ -91,7 +93,7 @@ class InstanceManager:
 
     def _become_primary(self, endpoint) -> None:
         self._remote = None
-        runtime = PrimaryRuntime(self._settings, self._pid, endpoint)
+        runtime = PrimaryRuntime(self._settings, self._catalog, self._pid, endpoint)
         runtime.start()
         self._runtime = runtime
         if endpoint is not None:
@@ -125,8 +127,10 @@ class InstanceManager:
                 self._reelect(backend)
         raise PrimaryUnavailable("the speech backend is unavailable")
 
-    def start(self, text: str, voice: str, speed: float) -> int:
-        return self._delegate("start", text, voice, speed)
+    def start(
+        self, text: str, voice: str | None, speed: float, model: str | None = None, language: str | None = None
+    ) -> dict:
+        return self._delegate("start", text, voice, speed, model, language)
 
     def pause(self) -> bool:
         return self._delegate("pause")

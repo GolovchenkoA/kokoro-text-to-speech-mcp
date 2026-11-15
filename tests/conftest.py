@@ -7,23 +7,30 @@ from types import SimpleNamespace
 import pytest
 from mcp import Client
 
+from tts_mcp import devices
 from tts_mcp.config import Settings
 from server import build_app
-from tests.fakes import FakeEngine, FakeSoundDevice, FakeVosk, wait_until
+from tests.fakes import FakeEngine, FakeQwen, FakeSoundDevice, FakeTorch, FakeVosk, wait_until
 
 
 @pytest.fixture
 def fakes(monkeypatch, tmp_path):
     """Replace audio, the speech engine and Vosk with fakes (the modules are imported lazily by the server)."""
     vosk = FakeVosk()
-    sd, engine = FakeSoundDevice(vosk.phrases), FakeEngine()
+    sd, engine, qwen = FakeSoundDevice(vosk.phrases), FakeEngine(), FakeQwen()
     monkeypatch.setitem(sys.modules, "sounddevice", sd)
     monkeypatch.setitem(sys.modules, "kokoro", engine)
+    monkeypatch.setitem(sys.modules, "qwen_tts", qwen)
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
     monkeypatch.setitem(sys.modules, "vosk", vosk)
+    gpus = {"available": frozenset({"cpu"})}  # tests change this to pretend a GPU exists
+    monkeypatch.setattr(devices, "available_devices", lambda: gpus["available"])
     workdir = tmp_path / "work"
     workdir.mkdir()
     monkeypatch.chdir(workdir)  # lets tests assert that nothing is written to disk
-    return SimpleNamespace(sd=sd, engine=engine, vosk=vosk, tmp_path=tmp_path, workdir=workdir)
+    return SimpleNamespace(
+        sd=sd, engine=engine, qwen=qwen, vosk=vosk, gpus=gpus, tmp_path=tmp_path, workdir=workdir
+    )
 
 
 @pytest.fixture

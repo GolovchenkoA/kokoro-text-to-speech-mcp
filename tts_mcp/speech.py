@@ -12,13 +12,14 @@ from typing import Protocol
 import numpy as np
 
 from tts_mcp.audio import open_speaker_stream
-from tts_mcp.config import MAX_CHARS, SAMPLE_RATE
+from tts_mcp.catalog import Selection
+from tts_mcp.config import MAX_CHARS
+from tts_mcp.errors import InvalidSpeechRequest
 from tts_mcp.synthesis import SpeechSynthesizer
-from tts_mcp.voices import language_code
 
 log = logging.getLogger(__name__)
 
-SLICE_FRAMES = SAMPLE_RATE // 20  # 50 ms: granularity of pause/stop while audio is playing
+SLICES_PER_SECOND = 20  # 50 ms slices: granularity of pause/stop while audio is playing
 LOOKAHEAD_CHUNKS = 3  # bounds how far synthesis runs ahead of playback (matters while paused)
 JOIN_TIMEOUT = 2.0
 
@@ -34,10 +35,6 @@ class SpeechState(enum.StrEnum):
 ACTIVE_STATES = (SpeechState.PLAYING, SpeechState.PAUSED)
 
 
-class InvalidSpeechRequest(ValueError):
-    """The text, voice or speed of a speech request is not acceptable."""
-
-
 class AudioStream(Protocol):
     def start(self) -> None: ...
     def write(self, data: np.ndarray) -> object: ...
@@ -49,7 +46,9 @@ class AudioStream(Protocol):
 class SpeechController(Protocol):
     """What the tools need from a speech backend: the local service or a forwarder to the primary."""
 
-    def start(self, text: str, voice: str, speed: float) -> int: ...
+    def start(
+        self, text: str, voice: str | None, speed: float, model: str | None = None, language: str | None = None
+    ) -> dict: ...
     def pause(self) -> bool: ...
     def resume(self) -> bool: ...
     def stop(self) -> bool: ...
@@ -68,21 +67,23 @@ class SpeechSession:
     def __init__(
         self,
         text: str,
-        voice: str,
+        selection: Selection,
         speed: float,
         synthesizer: SpeechSynthesizer,
-        open_stream: Callable[[], AudioStream] = open_speaker_stream,
+        open_stream: Callable[[int], AudioStream] = open_speaker_stream,
     ) -> None:
         self.state = SpeechState.PLAYING
         self.error: str | None = None
-        self._text, self._voice, self._speed = text, voice, speed
+        self.selection = selection
+        self._text, self._speed = text, speed
         self._synthesizer = synthesizer
+        self._slice_frames = synthesizer.sample_rate(selection.model) // SLICES_PER_SECOND
         self._queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=LOOKAHEAD_CHUNKS)
         self._stop = threading.Event()
         self._running = threading.Event()  # set = playing, cleared = paused
         self._running.set()
         # Open in the caller's thread so a missing/busy audio device fails fast.
-        self._stream = open_stream()
+        self._stream = open_stream(synthesizer.sample_rate(selection.model))
         self._generator = threading.Thread(target=self._generate, name="tts-generate", daemon=True)
         self._player = threading.Thread(target=self._play, name="tts-play", daemon=True)
         self._generator.start()
@@ -136,7 +137,7 @@ class SpeechSession:
     def _generate(self) -> None:
         try:
             produced = False
-            for chunk in self._synthesizer.synthesize(self._text, self._voice, self._speed):
+            for chunk in self._synthesizer.synthesize(self._text, self.selection, self._speed):
                 if self._stop.is_set():
                     return
                 produced = True
@@ -158,11 +159,11 @@ class SpeechSession:
                     continue
                 if chunk is None:
                     break
-                for i in range(0, len(chunk), SLICE_FRAMES):
+                for i in range(0, len(chunk), self._slice_frames):
                     self._running.wait()  # blocks while paused
                     if self._stop.is_set():
                         break
-                    self._stream.write(chunk[i : i + SLICE_FRAMES].reshape(-1, 1))
+                    self._stream.write(chunk[i : i + self._slice_frames].reshape(-1, 1))
             if self._stop.is_set():
                 self._stream.abort()  # drop buffered audio immediately
             else:
@@ -184,9 +185,10 @@ class SpeechService:
     def __init__(
         self,
         synthesizer: SpeechSynthesizer,
-        open_stream: Callable[[], AudioStream] = open_speaker_stream,
+        open_stream: Callable[[int], AudioStream] = open_speaker_stream,
     ) -> None:
         self._synthesizer = synthesizer
+        self._catalog = synthesizer.catalog
         self._open_stream = open_stream
         self._lock = threading.Lock()
         self._session: SpeechSession | None = None
@@ -196,15 +198,20 @@ class SpeechService:
         with self._lock:
             return self._session
 
-    def start(self, text: str, voice: str, speed: float) -> int:
-        """Start speaking, stopping any speech in progress. Returns the number of characters spoken."""
+    def start(
+        self, text: str, voice: str | None, speed: float, model: str | None = None, language: str | None = None
+    ) -> dict:
+        """Start speaking, stopping any speech in progress.
+
+        The model, language and voice are chosen from the catalogue for whatever the request leaves
+        out. Returns what is being spoken: characters, model, voice and language.
+        """
         text = text.strip()
         if not text:
             raise InvalidSpeechRequest("text is empty")
         if len(text) > MAX_CHARS:
             raise InvalidSpeechRequest(f"text is too long ({len(text)} chars, max {MAX_CHARS})")
-        if language_code(voice) is None:
-            raise InvalidSpeechRequest(f"unknown voice '{voice}'. Call list_voices for valid IDs.")
+        selection = self._catalog.resolve(model, voice, language)  # raises InvalidSpeechRequest
         speed = min(max(speed, 0.5), 2.0)
 
         with self._lock:
@@ -212,8 +219,8 @@ class SpeechService:
             if previous is not None:
                 previous.stop()
                 previous.join(JOIN_TIMEOUT)
-            self._session = SpeechSession(text, voice, speed, self._synthesizer, self._open_stream)
-        return len(text)
+            self._session = SpeechSession(text, selection, speed, self._synthesizer, self._open_stream)
+        return {"characters": len(text), "model": selection.model, "voice": selection.voice, "language": selection.language}
 
     def pause(self) -> bool:
         session = self.current_session

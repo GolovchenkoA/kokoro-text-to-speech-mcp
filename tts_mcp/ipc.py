@@ -208,7 +208,13 @@ class PrimaryServer:
                 return {"ok": True, "result": {"primary_pid": self._pid}}
             if op == "start":
                 log.info("Speech request 'start' received from process %s (secondary)", caller)
-                result = self._speech.start(request["text"], request["voice"], float(request["speed"]))
+                result = self._speech.start(
+                    request["text"],
+                    request.get("voice"),
+                    float(request["speed"]),
+                    request.get("model"),
+                    request.get("language"),
+                )
             elif op in CONTROL_OPS:
                 log.info("Speech request '%s' received from process %s (secondary)", op, caller)
                 result = getattr(self._speech, op)()
@@ -283,8 +289,10 @@ class RemoteSpeechService:
                 pass
             self._conn = None
 
-    def start(self, text: str, voice: str, speed: float) -> int:
-        return self._request("start", text=text, voice=voice, speed=speed)
+    def start(
+        self, text: str, voice: str | None, speed: float, model: str | None = None, language: str | None = None
+    ) -> dict:
+        return self._request("start", text=text, voice=voice, speed=speed, model=model, language=language)
 
     def pause(self) -> bool:
         return self._request("pause")
