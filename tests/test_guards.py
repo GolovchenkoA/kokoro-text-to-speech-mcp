@@ -95,7 +95,7 @@ def test_an_answer_that_is_unsure_or_missing_counts_as_supported(catalog):
 # -- what is refused or adjusted -----------------------------------------------------------------
 def test_a_language_no_model_speaks_is_refused_with_the_supported_languages(catalog):
     guard, _ = guard_for(catalog, POLISH)
-    with pytest.raises(SelectionError, match=r"Polish \(pl\), is not supported") as error:
+    with pytest.raises(SelectionError, match=r"detected as Polish \(pl\) and it is not supported by the model") as error:
         guard.check(request(long_text()))
     message = str(error.value)
     assert "American English" in message and "German" in message and "Polish" not in message.split("Supported")[1]
@@ -204,7 +204,7 @@ def test_every_other_call_passes_through_unchecked():
 def test_an_unsupported_language_gets_an_error_response_and_nothing_is_spoken(make_app, fakes):
     app = make_app(detector=FakeDetector(POLISH))
     result = call_tool_on(app, "start_speech", text=long_text())
-    assert result.is_error and "Polish (pl), is not supported" in result.text
+    assert result.is_error and "detected as Polish (pl) and it is not supported by the model" in result.text
     assert call_tool_on(app, "speech_status").text.startswith("idle")
     assert not fakes.engine.calls and not fakes.qwen.calls and not fakes.sd.streams
 

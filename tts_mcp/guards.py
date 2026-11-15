@@ -72,8 +72,8 @@ class LanguageGuard:
 
         if not self._is_spoken_by_a_model(detection.code):
             raise SelectionError(
-                f"The language of the text, {detection.name} ({detection.code}), is not supported. "
-                f"Supported languages: {self._supported_languages()}."
+                f"The text language was detected as {detection.name} ({detection.code}) and it is not "
+                f"supported by the model. Supported languages: {self._supported_languages()}."
             )
         if not (request.language or request.voice):
             return replace(request, language=detection.code)
