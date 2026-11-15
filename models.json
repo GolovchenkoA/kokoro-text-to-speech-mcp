@@ -34,7 +34,7 @@
       "engine": "tts_mcp.engines.qwen3:Qwen3Engine",
       "sample_rate": 24000,
       "device": "auto",
-      "options": { "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "max_chars": 300 },
+      "options": { "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "max_chars": 300, "parallel_threads": 1 },
       "voices": ["Ryan", "Aiden", "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric", "Ono_Anna", "Sohee"],
       "languages": {
         "auto": { "name": "Any language (detected by the model)", "engine_code": "Auto", "default_voice": "Ryan", "detects_language": true },

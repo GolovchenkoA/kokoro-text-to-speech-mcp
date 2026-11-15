@@ -153,6 +153,10 @@ class FakeQwen(types.ModuleType):
         self.calls: list[dict] = []
         self.fail_on_gpu = False
         self.rate = rate
+        self.delay_for = None  # callable(text) -> seconds to take, to make pieces finish out of order
+        self.active = 0
+        self.max_active = 0  # the most calls that ran at the same time
+        self.lock = threading.Lock()
         outer = self
 
         class Qwen3TTSModel:
@@ -164,10 +168,20 @@ class FakeQwen(types.ModuleType):
                 return cls()
 
             def generate_custom_voice(self, text, language, speaker):
-                outer.calls.append({"text": text, "language": language, "speaker": speaker})
-                if "BOOM" in text:
-                    raise RuntimeError("synthesis failed")
-                return [np.full(outer.rate // 2, 0.1, dtype=np.float32)], outer.rate
+                with outer.lock:
+                    outer.calls.append({"text": text, "language": language, "speaker": speaker})
+                    outer.active += 1
+                    outer.max_active = max(outer.max_active, outer.active)
+                try:
+                    if outer.delay_for is not None:
+                        time.sleep(outer.delay_for(text))
+                    if "BOOM" in text:
+                        raise RuntimeError("synthesis failed")
+                    # the value identifies the piece (its length), so a test can see the order of the audio
+                    return [np.full(outer.rate // 2, 0.1 + len(text) * 1e-4, dtype=np.float32)], outer.rate
+                finally:
+                    with outer.lock:
+                        outer.active -= 1
 
         self.Qwen3TTSModel = Qwen3TTSModel
 

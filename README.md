@@ -15,6 +15,8 @@ Models shipped in `models.json`:
 
 **The default model (`default_model` in the file) decides what is supported.** When a request names no model, only the default model is used: a language or voice it does not have is not supported, even if another model in the file has it. Another model is used only when the request names it (`model` argument). A model is loaded only when it is first used. Every model must meet the rules in [docs/APP_REQUIREMENTS.md](docs/APP_REQUIREMENTS.md): commercial-use license, audio only in memory, and CPU fallback.
 
+**Chunking options of Qwen3** (in its `options` in `models.json`): the text is cut into pieces because the model returns a whole waveform per call. `max_chars` (default 300) is the largest piece. `parallel_threads` (default 1) chooses how the pieces are worked through: 1 generates one piece at a time (the sequential strategy), 2 or more generates that many pieces at the same time (the parallel strategy). The audio is always played in the order of the text. Measured with the real model on an RTX 5060 laptop GPU, 4 pieces: one thread took 49.7 s, two threads 51.6 s and the first piece arrived later (19.6 s instead of 11.5 s), so on that computer parallel generation did not help; it may on other hardware, so measure before using it. A smaller `max_chars` makes speech start sooner.
+
 **Devices.** Each model runs on the GPU when there is one (`"device": "auto"` in the file, or `TTS_DEVICE`) and on the CPU otherwise. A requested GPU that is missing, or a GPU that fails to load a model, falls back to the CPU with a log message. Whether a GPU is available depends on the PyTorch build you installed, so set up the environment as described in step 2 (CPU setup or GPU setup).
 
 ## Tools
