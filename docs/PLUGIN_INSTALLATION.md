@@ -47,6 +47,8 @@ python -m pip install srt
 python -m pip install --only-binary=:all: --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 ```
 
+These commands are the **CPU setup**. To use an NVIDIA GPU, follow the separate GPU setup in the README (step 2B) instead of the `pip install` commands here; do not mix the two.
+
 On Python 3.14, add `--ignore-requires-python` to the second `pip install`. The first start downloads the speech model (and about 40 MB for voice commands), so it needs internet once.
 
 ## 3. Register the server with Claude

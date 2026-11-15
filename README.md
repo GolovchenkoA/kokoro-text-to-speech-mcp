@@ -15,7 +15,7 @@ Models shipped in `models.json`:
 
 **The default model (`default_model` in the file) decides what is supported.** When a request names no model, only the default model is used: a language or voice it does not have is not supported, even if another model in the file has it. Another model is used only when the request names it (`model` argument). A model is loaded only when it is first used. Every model must meet the rules in [docs/APP_REQUIREMENTS.md](docs/APP_REQUIREMENTS.md): commercial-use license, audio only in memory, and CPU fallback.
 
-**Devices.** Each model runs on the GPU when there is one (`"device": "auto"` in the file, or `TTS_DEVICE`) and on the CPU otherwise. A requested GPU that is missing, or a GPU that fails to load a model, falls back to the CPU with a log message.
+**Devices.** Each model runs on the GPU when there is one (`"device": "auto"` in the file, or `TTS_DEVICE`) and on the CPU otherwise. A requested GPU that is missing, or a GPU that fails to load a model, falls back to the CPU with a log message. Whether a GPU is available depends on the PyTorch build you installed, so set up the environment as described in step 2 (CPU setup or GPU setup).
 
 ## Tools
 
@@ -42,7 +42,7 @@ The older `speak` (save to WAV) and `play_file` tools were removed; they remain 
 | Linux only: PortAudio | `sudo apt install libportaudio2` (bundled on Windows/macOS) |
 | A microphone | For voice control, which is on by default. The server works without one (the listener just logs an error) |
 
-No GPU is needed; CPU is fast enough. No API keys.
+A GPU is optional: the server runs on the CPU, and uses an NVIDIA GPU when PyTorch can see one. Step 2 has two separate setups, **CPU** and **GPU**; choose one and do not mix them. No API keys.
 
 ## Setup on a new computer
 
@@ -53,11 +53,25 @@ git clone https://github.com/GolovchenkoA/kokoro-text-to-speech-mcp.git
 cd kokoro-text-to-speech-mcp
 ```
 
-### 2. Create a virtual environment and install dependencies
+### 2. Create the virtual environment and install: choose ONE setup, CPU or GPU
 
-**Always install packages into the project's virtual environment (`.venv`), never into the system Python.** Create it once (below), then either activate it or call its Python directly: `.venv\Scripts\python.exe -m pip ...` on Windows, `.venv/bin/python -m pip ...` on Linux and macOS. Every `python -m pip` and `python -m tts_mcp...` command in this README assumes the environment is active. The server itself must be started with the environment's Python (step 5), so packages installed anywhere else are not found.
+**Always install packages into the project's virtual environment (`.venv`), never into the system Python.** Create it once, then either activate it or call its Python directly: `.venv\Scripts\python.exe -m pip ...` on Windows, `.venv/bin/python -m pip ...` on Linux and macOS. Every `python -m pip` and `python -m tts_mcp...` command in this README assumes the environment is active. The server itself must be started with the environment's Python (step 5), so packages installed anywhere else are not found.
 
-`kokoro==0.9.4` declares `requires-python <3.13`, so on Python 3.14 pip needs `--ignore-requires-python`. `--only-binary=:all:` stops pip from trying to compile spaCy/blis from source (which fails on Windows). `vosk` (voice control) needs `srt`, which has no wheel, so install `srt` first.
+The two setups below install **different builds of PyTorch** (the library that runs the models). Pick one and follow only that section. **Do not mix them**: do not add the CPU index to a GPU install, do not install the CUDA build into a CPU environment, and do not run a command from one section in an environment set up from the other.
+
+| | CPU setup | GPU setup (NVIDIA) |
+|---|---|---|
+| Needs | any computer | NVIDIA graphics card and a current driver |
+| PyTorch build | CPU only (`+cpu`), small download | CUDA (`+cu130`), over 1 GB |
+| Kokoro speed (measured, RTX 5060 laptop) | about 1.5 s per sentence | about 0.15 s per sentence |
+| Qwen3 speed (measured, same computer) | 29 to 39 s for 5 to 7 s of speech | 9 to 30 s for 5 to 8 s of speech |
+| Works on | Windows, Linux, macOS | NVIDIA on Windows and Linux (tested on Windows only) |
+
+Both setups use the same server code and the same `models.json`. On macOS use the CPU setup (there is no CUDA there).
+
+`kokoro==0.9.4` declares `requires-python <3.13`, so on Python 3.14 pip needs `--ignore-requires-python`. `--only-binary=:all:` stops pip from trying to compile spaCy/blis from source (which fails on Windows). `vosk` (voice control) needs `srt`, which has no wheel, so install `srt` first. If installation fails on 3.14, use Python 3.12 instead (`py -3.12` / `python3.12`); the code is unchanged and `--ignore-requires-python` is no longer needed (not checked with the GPU build).
+
+#### 2A. CPU setup
 
 **Windows (PowerShell)**
 
@@ -77,10 +91,58 @@ python -m pip install srt
 python -m pip install --ignore-requires-python --only-binary=:all: --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 ```
 
-- The `--extra-index-url` line installs the smaller CPU-only PyTorch. Drop it for the default build (or if you want CUDA).
-- If installation fails on 3.14, use Python 3.12 instead (`py -3.12` / `python3.12`); the code is unchanged and `--ignore-requires-python` is no longer needed.
-- Requirement files: `requirements-base.txt` (server, audio, voice control: no model), `requirements-kokoro.txt` and `requirements-qwen3.txt` (base plus one model). `requirements.txt` is base plus Kokoro, the default model, so the commands above install it. Install only the models you use; a model that is not installed is never imported.
-- Qwen3-TTS only, or in addition to Kokoro (more languages): `python -m pip install -r requirements-qwen3.txt` (with the virtual environment active, or `.venv/bin/python -m pip ...` / `.venv\Scripts\python.exe -m pip ...`); to make it the default, set `"default_model": "qwen3"` in `models.json`. Its weights are about 2.3 GB, see "Download the models in advance". Checked with the real model on a CPU (Windows, Python 3.14): it generates English and German speech and its output rate is 24 kHz. On that CPU it generated audio about four times slower than real time, so speech has pauses between sentences; a GPU is recommended for it. Not checked: a GPU, macOS, Linux, and installing it in the same environment as Kokoro (the dependency resolver reports no conflict).
+The `--extra-index-url .../cpu` option is what selects the small CPU-only PyTorch.
+
+- **Check it:** `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"` must print a version ending in `+cpu` (on macOS, no suffix) and `False`.
+- **Optional second model, Qwen3-TTS:** with the same environment active, add the same index option: `python -m pip install --ignore-requires-python --only-binary=:all: --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-qwen3.txt`. Qwen3 is slow on a CPU (see the table): there are pauses between sentences.
+- **Device setting:** leave `TTS_DEVICE` unset, or set `TTS_DEVICE=cpu`.
+
+#### 2B. GPU setup (NVIDIA, CUDA)
+
+Needs an NVIDIA GPU and a driver that supports CUDA 13.0 (driver 580 or newer). Check with `nvidia-smi`. RTX 50 series cards need a CUDA 12.8 or newer build; for older cards pick the matching build at https://pytorch.org/get-started/locally/ and use its index in place of `cu130` (not checked). The order matters: install the CUDA PyTorch **first**, then the rest, **without** the CPU index.
+
+**Windows (PowerShell)**
+
+```powershell
+py -3.14 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install srt
+python -m pip install --only-binary=:all: --index-url https://download.pytorch.org/whl/cu130 torch==2.11.0 torchaudio==2.11.0
+python -m pip install --ignore-requires-python --only-binary=:all: -r requirements.txt
+```
+
+**Linux**
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+python -m pip install srt
+python -m pip install --only-binary=:all: --index-url https://download.pytorch.org/whl/cu130 torch==2.11.0 torchaudio==2.11.0
+python -m pip install --ignore-requires-python --only-binary=:all: -r requirements.txt
+```
+
+The third command installs the CUDA build. The last one finds PyTorch already installed and keeps it, because it has no `--extra-index-url` for the CPU build. Do not add one.
+
+- **Check it:** `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"` must print a version ending in `+cu130` and `True`. If it prints `+cpu` or `False`, the environment is not a GPU setup: see "Switching between CPU and GPU" below.
+- **Optional second model, Qwen3-TTS:** with the same environment active: `python -m pip install --ignore-requires-python --only-binary=:all: -r requirements-qwen3.txt` (no CPU index). The CUDA PyTorch stays installed.
+- **Device setting:** `TTS_DEVICE=cuda`, or leave it unset (`auto` uses the GPU when PyTorch can see one). If the GPU cannot be used, the server falls back to the CPU and logs it: speech then works but slowly, so check the log if it is slow.
+- **Checked:** this exact install (CUDA PyTorch 2.11.0, Kokoro and Qwen3 packages together, `pip check` clean) and both models on an RTX 5060 laptop GPU with Windows and Python 3.14, in a separate test environment. Not checked: Linux, other GPUs, Python 3.12, and the whole MCP server on the GPU.
+
+#### Switching between CPU and GPU
+
+Use one environment per setup. The safest way to switch is to create a **new** virtual environment with the other setup (for example `.venv-gpu`) and point the Claude config (step 5) at its Python.
+
+To change an existing environment in place (only the first command was checked, with a dry run, not run in place):
+
+- CPU to GPU: `python -m pip install --force-reinstall --no-deps --index-url https://download.pytorch.org/whl/cu130 torch==2.11.0 torchaudio==2.11.0`
+- GPU to CPU: `python -m pip install --force-reinstall --no-deps --index-url https://download.pytorch.org/whl/cpu torch torchaudio` (not checked)
+
+Then repeat the **Check it** command of the setup you switched to.
+
+#### Notes for both setups
+
+- **Requirement files:** `requirements-base.txt` (server, audio, voice control: no model), `requirements-kokoro.txt` and `requirements-qwen3.txt` (base plus one model). `requirements.txt` is base plus Kokoro, the default model. Install only the models you use; a model that is not installed is never imported.
+- **Qwen3-TTS** adds more languages; to use it, set `"default_model": "qwen3"` in `models.json` or name `model="qwen3"` in the request. Its weights are about 2.3 GB, see "Download the models in advance". The files and the package are separate installs: downloading the files does not install the package.
 - Japanese and Chinese voices need extras: `python -m pip install --ignore-requires-python "misaki[ja]"` / `"misaki[zh]"`.
 
 ### 3. Install espeak-ng
@@ -95,7 +157,10 @@ Used for out-of-dictionary words and non-English languages.
 
 ```bash
 python -c "import mcp.server.mcpserver, sounddevice, vosk, kokoro; print('imports ok')"
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
+
+The second command shows which setup the environment has: `+cpu` and `False` for the CPU setup, `+cu130` and `True` for the GPU setup. If it shows the other one, go back to step 2.
 
 (Run it with the venv active, or call `.venv\Scripts\python.exe` / `.venv/bin/python` directly.) Optional: open the server in the MCP Inspector with `npx @modelcontextprotocol/inspector <path-to-venv-python> server.py`.
 
@@ -139,7 +204,7 @@ Use **absolute paths** to the venv's Python and to `server.py`. Do not rely on `
 }
 ```
 
-Voice control is on by default; add `"TTS_VOICE_CONTROL_ENABLED": "0"` to `env` to turn it off. If you already have other servers under `mcpServers`, add only the `"tts"` entry.
+`TTS_DEVICE` follows your setup: `cpu` for the CPU setup, `cuda` for the GPU setup (`auto` picks whichever PyTorch can see, so it works for both). Voice control is on by default; add `"TTS_VOICE_CONTROL_ENABLED": "0"` to `env` to turn it off. If you already have other servers under `mcpServers`, add only the `"tts"` entry.
 
 ### 6. Restart and try it
 
@@ -162,7 +227,7 @@ python -m tts_mcp.download --voice-control  # also the voice-control model (abou
 
 On Windows use `.venv\Scripts\python.exe` in place of `python` if the environment is not activated. The command reads `models.json` (or `TTS_MODELS_FILE`) and fetches the `repo` of each model's `options`, so a model you add is downloaded the same way.
 
-- **Files are not the package.** This command downloads the model's files only. The model's Python package must be installed too, in the virtual environment: `python -m pip install -r requirements-qwen3.txt` for Qwen3 (`requirements-kokoro.txt` for Kokoro). Without it the model cannot run, and the command prints a note saying so after the download.
+- **Files are not the package.** This command downloads the model's files only. The model's Python package must be installed too, in the virtual environment, with the command of your setup in step 2 (2A for CPU, 2B for GPU: `requirements-qwen3.txt` for Qwen3, `requirements-kokoro.txt` for Kokoro). Without it the model cannot run, and the command prints a note saying so after the download.
 - **Where the files go.** Hugging Face models go to `~/.cache/huggingface/hub` (`C:\Users\<you>\.cache\huggingface\hub` on Windows; set `HF_HOME` to move it). Every project and virtual environment on the machine shares this cache, so another project that loads the same model does not download it again. The voice-control model goes to `~/.cache/vosk`.
 - **Check it works offline.** After the download, set `HF_HUB_OFFLINE=1` in the server's `env` to make sure nothing is fetched at run time.
 - **A computer without internet.** Download on a connected computer, copy the cache folders above to the same place on the other computer, and set `HF_HUB_OFFLINE=1`. Voice control can also use a local Vosk model folder (`TTS_VOSK_MODEL`).
@@ -285,7 +350,8 @@ Claude Desktop logs: `%APPDATA%\Claude\logs\mcp-server-tts.log` (Windows) or `~/
 
 | Symptom | Fix |
 |---|---|
-| `No module named 'mcp.server.fastmcp'` | An old checkout/`mcp` 1.x mix-up. The code needs `mcp` 2.x: `python -m pip install -r requirements.txt` with the venv active (or through the venv's Python) |
+| `No module named 'mcp.server.fastmcp'` | An old checkout/`mcp` 1.x mix-up. The code needs `mcp` 2.x: `python -m pip install -r requirements.txt` with the venv active, with the same options as your setup in step 2 (do not add the CPU index to a GPU environment) |
+| Speech is slow although there is an NVIDIA GPU | The environment has the CPU build of PyTorch. Run `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"`: if it prints `+cpu` or `False`, set the environment up again with the GPU setup in step 2 (not the CPU one) |
 | `No matching distribution found for srt` | Run `python -m pip install srt` in the venv before the main install (step 2) |
 | pip tries to build spaCy / blis and fails | Add `--only-binary=:all:` or use Python 3.12 |
 | `requires a different Python` for the engine package (`kokoro`) | Add `--ignore-requires-python` (Python 3.14) or use Python 3.12 |
