@@ -47,6 +47,7 @@ class ModelSpec:
     device: str  # "auto", "cpu", "cuda" or "mps"; falls back to the CPU when unavailable
     languages: Mapping[str, Language]  # in file order; the first one is the model's default language
     options: Mapping[str, Any] = field(default_factory=dict)  # free-form, passed to the engine
+    enabled: bool = True  # a model with "enabled": false stays in the file but is not offered or used
 
 
 @dataclass(frozen=True)
@@ -179,8 +180,11 @@ def default_models_file() -> Path:
     return Path(__file__).resolve().parent.parent / "models.json"
 
 
-def load_catalog(path: Path) -> Catalog:
-    """Read and validate the models file. Raises CatalogError with a message that names the problem."""
+def load_catalog(path: Path, include_disabled: bool = False) -> Catalog:
+    """Read and validate the models file. Raises CatalogError with a message that names the problem.
+
+    Models with ``"enabled": false`` are left out unless `include_disabled` (used to download them).
+    """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -188,21 +192,31 @@ def load_catalog(path: Path) -> Catalog:
     except json.JSONDecodeError as exc:
         raise CatalogError(f"the models file {path} is not valid JSON: {exc}") from exc
     try:
-        return parse_catalog(data)
+        return parse_catalog(data, include_disabled)
     except CatalogError as exc:
         raise CatalogError(f"{path}: {exc}") from exc
 
 
-def parse_catalog(data: Any) -> Catalog:
+def _is_enabled(raw: Any) -> bool:
+    return not (isinstance(raw, dict) and raw.get("enabled", True) is False)
+
+
+def parse_catalog(data: Any, include_disabled: bool = False) -> Catalog:
     if not isinstance(data, dict):
         raise CatalogError("the top level must be an object")
     raw_models = data.get("models")
     if not isinstance(raw_models, dict) or not raw_models:
         raise CatalogError("'models' must be a non-empty object")
-    models = {model_id: _parse_model(model_id, raw) for model_id, raw in raw_models.items()}
+    models = {
+        model_id: _parse_model(model_id, raw)
+        for model_id, raw in raw_models.items()
+        if include_disabled or _is_enabled(raw)
+    }
+    if not models:
+        raise CatalogError("no model is enabled")
     default = data.get("default_model")
     if default not in models:
-        raise CatalogError(f"'default_model' must name one of the models: {', '.join(models)}")
+        raise CatalogError(f"'default_model' must name one of the enabled models: {', '.join(models)}")
     return Catalog(default_model=default, models=models)
 
 
@@ -234,6 +248,7 @@ def _parse_model(model_id: str, raw: Any) -> ModelSpec:
         device=str(raw.get("device", "auto")),
         languages=languages,
         options=options,
+        enabled=_is_enabled(raw),
     )
 
 

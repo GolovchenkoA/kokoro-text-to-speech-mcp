@@ -7,8 +7,17 @@ import queue
 import threading
 import time
 import types
+from pathlib import Path
 
 import numpy as np
+
+def all_models_data() -> dict:
+    """The shipped models.json with every model enabled (the shipped file keeps Qwen3 off until it is installed)."""
+    data = json.loads((Path(__file__).resolve().parent.parent / "models.json").read_text(encoding="utf-8"))
+    for model in data["models"].values():
+        model.pop("enabled", None)
+    return data
+
 
 SAMPLE_RATE = 24_000  # rate of the models in the default models.json
 CHUNK_FRAMES = 12_000  # 0.5 s at 24 kHz = 10 playback slices of 50 ms

@@ -6,12 +6,12 @@ MCP server that gives Claude Desktop (or any MCP client) a local, offline text-t
 
 Which text-to-speech model speaks is decided by **`models.json`** (next to `server.py`; point `TTS_MODELS_FILE` at another file to use your own). The file lists the models, the languages each one speaks, the voices for each language, the default model, and the default voice for every model and language. Nothing in the code names a model, so switching the default model, or adding a model that uses an existing engine class, is a change to that file only. A model family with a new engine needs one new engine class and a line in the file, see [docs/ADDING_A_MODEL.md](docs/ADDING_A_MODEL.md).
 
-Models shipped in `models.json`:
+Models shipped in `models.json` (a model with `"enabled": false` stays in the file but is not offered or used; **Qwen3 is shipped off**, so with the default file only Kokoro speaks and a text in Russian, for example, is reported as an unsupported language):
 
 | Model id | Model | Languages | Needs |
 |---|---|---|---|
 | `kokoro` (default) | Kokoro-82M | American and British English, Spanish, French, Hindi, Italian, Japanese, Brazilian Portuguese, Mandarin Chinese | `requirements-kokoro.txt` (also `requirements.txt`), `espeak-ng` |
-| `qwen3` | Qwen3-TTS 0.6B, preset voices only | English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian (any language with "auto") | `requirements-qwen3.txt` |
+| `qwen3` (off by default) | Qwen3-TTS 0.6B, preset voices only | English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian (any language with "auto") | `requirements-qwen3.txt` |
 
 When a request names no model, the server uses the default model, or the first model that has the requested voice and language. A model is loaded only when it is first used. Every model must meet the rules in [docs/APP_REQUIREMENTS.md](docs/APP_REQUIREMENTS.md): commercial-use license, audio only in memory, and CPU fallback.
 
@@ -78,7 +78,7 @@ python -m pip install --ignore-requires-python --only-binary=:all: --extra-index
 - The `--extra-index-url` line installs the smaller CPU-only PyTorch. Drop it for the default build (or if you want CUDA).
 - If installation fails on 3.14, use Python 3.12 instead (`py -3.12` / `python3.12`); the code is unchanged and `--ignore-requires-python` is no longer needed.
 - Requirement files: `requirements-base.txt` (server, audio, voice control: no model), `requirements-kokoro.txt` and `requirements-qwen3.txt` (base plus one model). `requirements.txt` is base plus Kokoro, the default model, so the commands above install it. Install only the models you use; a model that is not installed is never imported.
-- Qwen3-TTS only, or in addition to Kokoro (more languages): `python -m pip install -r requirements-qwen3.txt`; to make it the default, set `"default_model": "qwen3"` in `models.json`. Its weights are about 2.3 GB, see "Download the models in advance". Checked with the real model on a CPU (Windows, Python 3.14): it generates English and German speech and its output rate is 24 kHz. On that CPU it generated audio about four times slower than real time, so speech has pauses between sentences; a GPU is recommended for it. Not checked: a GPU, macOS, Linux, and installing it in the same environment as Kokoro (the dependency resolver reports no conflict).
+- Qwen3-TTS only, or in addition to Kokoro (more languages): `python -m pip install -r requirements-qwen3.txt`; to use it, set `"enabled": true` on `qwen3` in `models.json` (and `"default_model": "qwen3"` to make it the default). Its weights are about 2.3 GB, see "Download the models in advance". Checked with the real model on a CPU (Windows, Python 3.14): it generates English and German speech and its output rate is 24 kHz. On that CPU it generated audio about four times slower than real time, so speech has pauses between sentences; a GPU is recommended for it. Not checked: a GPU, macOS, Linux, and installing it in the same environment as Kokoro (the dependency resolver reports no conflict).
 - Japanese and Chinese voices need extras: `python -m pip install --ignore-requires-python "misaki[ja]"` / `"misaki[zh]"`.
 
 ### 3. Install espeak-ng

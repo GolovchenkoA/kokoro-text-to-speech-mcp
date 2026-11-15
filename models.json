@@ -31,6 +31,7 @@
     },
     "qwen3": {
       "name": "Qwen3-TTS 0.6B (preset voices)",
+      "enabled": false,
       "engine": "tts_mcp.engines.qwen3:Qwen3Engine",
       "sample_rate": 24000,
       "device": "auto",
