@@ -18,12 +18,24 @@ from collections.abc import Sequence
 
 from tts_mcp.catalog import CatalogError, load_catalog
 from tts_mcp.config import Settings
+from tts_mcp.engines import create_engine
+from tts_mcp.errors import EngineUnavailable
 
 
 def _download_repo(repo: str) -> str:
     from huggingface_hub import snapshot_download  # imported here: only this command needs it
 
     return snapshot_download(repo_id=repo)
+
+
+def _warn_if_it_cannot_run(model_id, spec) -> None:
+    """The model files are only half of a model: its Python package must be installed too."""
+    try:
+        create_engine(spec, None).check_ready()
+    except EngineUnavailable as exc:
+        print(f"{model_id}: the files are downloaded, but the model cannot run yet. {exc}", file=sys.stderr)
+    except CatalogError as exc:
+        print(f"{model_id}: {exc}", file=sys.stderr)
 
 
 def _download_voice_control_model(path: str | None) -> None:
@@ -72,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             failed = True
             continue
         print(f"{model_id}: ready in {folder}")
+        _warn_if_it_cannot_run(model_id, spec)
 
     if args.voice_control:
         try:

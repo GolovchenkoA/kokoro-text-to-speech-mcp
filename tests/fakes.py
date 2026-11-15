@@ -7,8 +7,16 @@ import queue
 import threading
 import time
 import types
+from pathlib import Path
 
 import numpy as np
+
+def models_data(default_model: str = "kokoro") -> dict:
+    """The shipped models.json with the default model pinned, so tests do not depend on a local edit of it."""
+    data = json.loads((Path(__file__).resolve().parent.parent / "models.json").read_text(encoding="utf-8"))
+    data["default_model"] = default_model
+    return data
+
 
 SAMPLE_RATE = 24_000  # rate of the models in the default models.json
 CHUNK_FRAMES = 12_000  # 0.5 s at 24 kHz = 10 playback slices of 50 ms

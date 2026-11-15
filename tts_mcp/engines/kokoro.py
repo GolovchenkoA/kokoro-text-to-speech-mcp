@@ -30,7 +30,7 @@ class KokoroEngine:
     def check_ready(self) -> None:
         if not is_installed("kokoro"):
             raise EngineUnavailable(
-                f"The Kokoro model is not installed. {install_hint('requirements-kokoro.txt')}"
+                f"The Kokoro Python package is not installed (downloading the model files does not install it). {install_hint('requirements-kokoro.txt')}"
             )
 
     def _pipeline(self, lang_code: str):
@@ -40,7 +40,7 @@ class KokoroEngine:
                     from kokoro import KPipeline  # heavy import: defer until first use
                 except ImportError as exc:
                     raise RuntimeError(
-                        f"The Kokoro model is not installed. {install_hint('requirements-kokoro.txt')}"
+                        f"The Kokoro Python package is not installed (downloading the model files does not install it). {install_hint('requirements-kokoro.txt')}"
                     ) from exc
 
                 log.info("Loading Kokoro pipeline for lang_code=%s on %s", lang_code, self._device)

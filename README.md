@@ -162,6 +162,7 @@ python -m tts_mcp.download --voice-control  # also the voice-control model (abou
 
 On Windows use `.venv\Scripts\python.exe` in place of `python` if the environment is not activated. The command reads `models.json` (or `TTS_MODELS_FILE`) and fetches the `repo` of each model's `options`, so a model you add is downloaded the same way.
 
+- **Files are not the package.** This command downloads the model's files only. The model's Python package must be installed too, in the virtual environment: `python -m pip install -r requirements-qwen3.txt` for Qwen3 (`requirements-kokoro.txt` for Kokoro). Without it the model cannot run, and the command prints a note saying so after the download.
 - **Where the files go.** Hugging Face models go to `~/.cache/huggingface/hub` (`C:\Users\<you>\.cache\huggingface\hub` on Windows; set `HF_HOME` to move it). Every project and virtual environment on the machine shares this cache, so another project that loads the same model does not download it again. The voice-control model goes to `~/.cache/vosk`.
 - **Check it works offline.** After the download, set `HF_HUB_OFFLINE=1` in the server's `env` to make sure nothing is fetched at run time.
 - **A computer without internet.** Download on a connected computer, copy the cache folders above to the same place on the other computer, and set `HF_HUB_OFFLINE=1`. Voice control can also use a local Vosk model folder (`TTS_VOSK_MODEL`).

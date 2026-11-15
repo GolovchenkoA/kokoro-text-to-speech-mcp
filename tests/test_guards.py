@@ -9,8 +9,8 @@ import pytest
 
 import server
 from tests.conftest import call_tool_on
-from tests.fakes import wait_until
-from tts_mcp.catalog import SelectionError, default_models_file, load_catalog
+from tests.fakes import models_data, wait_until
+from tts_mcp.catalog import SelectionError, parse_catalog
 from tts_mcp.config import Settings
 from tts_mcp.detectors import Detection
 from tts_mcp.guards import (
@@ -51,7 +51,7 @@ class FakeDetector:
 @pytest.fixture(scope="module")
 def catalog():
     """The shipped file: Kokoro is the default model."""
-    return load_catalog(default_models_file())
+    return parse_catalog(models_data())
 
 
 @pytest.fixture(scope="module")
@@ -62,8 +62,7 @@ def qwen_catalog(catalog):
 
 @pytest.fixture
 def qwen_default_file(tmp_path):
-    data = json.loads(default_models_file().read_text(encoding="utf-8"))
-    data["default_model"] = "qwen3"
+    data = models_data("qwen3")
     path = tmp_path / "models-qwen-default.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     return path

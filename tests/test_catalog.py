@@ -7,12 +7,13 @@ from dataclasses import replace
 
 import pytest
 
-from tts_mcp.catalog import CatalogError, Selection, SelectionError, default_models_file, load_catalog, parse_catalog
+from tests.fakes import models_data
+from tts_mcp.catalog import CatalogError, Selection, SelectionError, load_catalog, parse_catalog
 
 
 @pytest.fixture(scope="module")
 def catalog():
-    return load_catalog(default_models_file())
+    return parse_catalog(models_data())
 
 
 def model(**changes):

@@ -8,7 +8,8 @@ import pytest
 
 from tests.conftest import call_tool_on
 from tests.fakes import wait_until
-from tts_mcp.catalog import Selection, SelectionError, default_models_file, load_catalog
+from tests.fakes import models_data
+from tts_mcp.catalog import Selection, SelectionError, parse_catalog
 from tts_mcp.scripts import candidate_languages, detect_script
 
 RUSSIAN = "Привет, это короткий тест речи."
@@ -16,7 +17,7 @@ RUSSIAN = "Привет, это короткий тест речи."
 
 @pytest.fixture(scope="module")
 def catalog():
-    return load_catalog(default_models_file())
+    return parse_catalog(models_data())
 
 
 # -- detecting the writing system ----------------------------------------------------------------

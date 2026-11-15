@@ -38,7 +38,7 @@ class Qwen3Engine:
     def check_ready(self) -> None:
         if not (is_installed("qwen_tts") and is_installed("torch")):
             raise EngineUnavailable(
-                f"The Qwen3-TTS model is not installed. {install_hint('requirements-qwen3.txt')}"
+                f"The Qwen3-TTS Python package is not installed (downloading the model files does not install it). {install_hint('requirements-qwen3.txt')}"
             )
 
     def _load(self):
@@ -53,7 +53,7 @@ class Qwen3Engine:
             from qwen_tts import Qwen3TTSModel
         except ImportError as exc:
             raise RuntimeError(
-                f"The Qwen3-TTS model is not installed. {install_hint('requirements-qwen3.txt')}"
+                f"The Qwen3-TTS Python package is not installed (downloading the model files does not install it). {install_hint('requirements-qwen3.txt')}"
             ) from exc
 
         if self._device != "cpu":

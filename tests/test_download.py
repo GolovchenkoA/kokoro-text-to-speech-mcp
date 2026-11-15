@@ -8,11 +8,12 @@ import types
 
 import pytest
 
+from tests.fakes import models_data
 from tts_mcp import download
 
 
 @pytest.fixture
-def hub(monkeypatch):
+def hub(monkeypatch, tmp_path):
     """A fake huggingface_hub that records what would be downloaded."""
     requested: list[str] = []
     module = types.ModuleType("huggingface_hub")
@@ -25,6 +26,9 @@ def hub(monkeypatch):
 
     module.snapshot_download = snapshot_download
     monkeypatch.setitem(sys.modules, "huggingface_hub", module)
+    pinned = tmp_path / "pinned-models.json"
+    pinned.write_text(json.dumps(models_data()), encoding="utf-8")  # kokoro is the default, whatever the local file says
+    monkeypatch.setenv("TTS_MODELS_FILE", str(pinned))
     return requested
 
 
@@ -90,3 +94,20 @@ def test_a_local_voice_control_model_needs_no_download(hub, monkeypatch, capsys)
     monkeypatch.setenv("TTS_VOSK_MODEL", "/models/vosk")
     assert download.main(["--voice-control"]) == 0
     assert "nothing to download" in capsys.readouterr().out
+
+
+def test_a_model_whose_package_is_missing_is_reported_after_its_files_are_downloaded(hub, monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "qwen_tts", None)  # makes `import qwen_tts` fail
+    assert download.main(["qwen3"]) == 0  # the download itself worked
+    captured = capsys.readouterr()
+    assert "qwen3: ready in" in captured.out
+    assert "files are downloaded, but the model cannot run yet" in captured.err
+    assert "downloading the model files does not install it" in captured.err
+    assert "pip install -r requirements-qwen3.txt" in captured.err
+
+
+def test_nothing_is_reported_when_the_package_is_there(hub, monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "qwen_tts", types.ModuleType("qwen_tts"))
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    assert download.main(["qwen3"]) == 0
+    assert "cannot run" not in capsys.readouterr().err
