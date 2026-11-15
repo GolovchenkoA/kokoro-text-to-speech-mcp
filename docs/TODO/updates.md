@@ -19,7 +19,7 @@ Done when every box below is checked.
 Give the project a unique name that does not mention Kokoro or any other tool or engine (no Kokoro, Vosk, Claude, MCP-vendor names and so on), so it stays valid if the engine changes and is not confused with an existing project. Descriptive text (README, docs) may still say which engine is used.
 
 - [ ] Choose a short, unique, tool-neutral name
-  - Possible solution (not final): **Larkspeak**. On 2026-11-15 the exact name was free on PyPI and npm and a GitHub search for repositories named `larkspeak` returned 0. Not checked: Agensi.io, trademarks, domains, social handles, general web search.
+  - Possible solution (not final): **Larkspeak**. The plugin, the skill, the buttons mod and the marketplace already use it (`plugins/larkspeak/` and `plugins/larkspeak-buttons/`), so they must be renamed too if another name is chosen. On 2026-11-15 the exact name was free on PyPI and npm and a GitHub search for repositories named `larkspeak` returned 0. Not checked: Agensi.io, trademarks, domains, social handles, general web search.
 - [ ] Check that it is free: GitHub, PyPI, npm, Agensi.io and a web search
 - [ ] Rename the GitHub repository (GitHub redirects the old URL)
 - [ ] Rename the local project folder and update the PyCharm project and any run configurations
@@ -35,12 +35,12 @@ Give the project a unique name that does not mention Kokoro or any other tool or
 
 Replace the self-contained `skill-draft/kokoro-tts/` with a skill that tells the agent when and how to use the server. No scripts and no setup beyond the install step.
 
-- [ ] Write `SKILL.md` with `name` and a trigger-friendly `description` ("read aloud", "narrate", "speak this", "voiceover", "pause/stop speech")
-- [ ] Explain when to call `start_speech` and to pass the text verbatim
-- [ ] Explain how to pick a voice that matches the text language (and that there is no Polish voice)
-- [ ] Explain pause, resume, stop and status, and the voice commands
-- [ ] Describe the `speak-last-reply` prompt and a fallback for agents without MCP prompts: call `start_speech` with the previous answer unchanged
-- [ ] Remove `scripts/` and the duplicated TTS code from the skill folder
+- [x] Write `SKILL.md` with `name` and a trigger-friendly `description` ("read aloud", "narrate", "speak this", "voiceover", "pause/stop speech") (done: `plugins/larkspeak/skills/larkspeak/SKILL.md`)
+- [x] Explain when to call `start_speech` and to pass the text verbatim
+- [x] Explain how to pick a voice that matches the text language (and that there is no Polish voice) (done in general terms; it does not name Polish, and the voice list will change with multi-model support)
+- [x] Explain pause, resume, stop and status, and the voice commands
+- [x] Describe the `speak-last-reply` prompt and a fallback for agents without MCP prompts: call `start_speech` with the previous answer unchanged
+- [ ] Remove `scripts/` and the duplicated TTS code from the skill folder (the new skill has no scripts, but the old `skill-draft/kokoro-tts/` still exists and should be deleted)
 - [ ] Test the skill in Claude Code and one other agent (Cursor or Copilot)
 
 ### 3. Make the server easy to install
@@ -50,9 +50,11 @@ Today a buyer must clone the repo, create a venv on Python 3.12–3.14, run `pip
 - [ ] Add `pyproject.toml` with a console command (for example `<new-name>`)
 - [ ] Fix the supported Python range (the speech engine blocks 3.13+)
 - [ ] Publish to PyPI so one line works: `uvx <new-name>`
-- [ ] Document config snippets for Claude Code (`claude mcp add`), Cursor, VS Code / Copilot and Claude Desktop
-- [ ] Consider a `.mcpb` / plugin package (see `docs/TODO/Local MCP updates.md`)
-- [ ] Document the `espeak-ng` system dependency per OS
+- [ ] Document config snippets for Claude Code (`claude mcp add`), Cursor, VS Code / Copilot and Claude Desktop (done for Claude Code and Claude Desktop in `docs/PLUGIN_INSTALLATION.md` and the README; Cursor and VS Code / Copilot are missing)
+- [x] Consider a `.mcpb` / plugin package (see `docs/TODO/Local MCP updates.md`) (plugin package and marketplace file created; not tested on a clean computer; the plugin has no `.mcp.json` until the PyPI release; `.mcpb` not done)
+- [x] Add the Larkspeak buttons mod (read aloud, pause, continue, stop under each reply) as its own optional plugin `larkspeak-buttons`, separate from the skill plugin `larkspeak` (`plugins/larkspeak-buttons/hooks/`; tested as a dev mod, not as an installed plugin)
+- [x] Write installation instructions for a new computer (`docs/PLUGIN_INSTALLATION.md`; the commands have not been run on a clean computer)
+- [x] Document the `espeak-ng` system dependency per OS (README and `docs/PLUGIN_INSTALLATION.md`)
 
 ### 4. License and notices
 

@@ -1,0 +1,5 @@
+{
+  "name": "larkspeak-buttons",
+  "version": "0.1.0",
+  "description": "Read aloud, pause, continue and stop buttons under each reply. Needs the local speech MCP server; works without the larkspeak skill."
+}

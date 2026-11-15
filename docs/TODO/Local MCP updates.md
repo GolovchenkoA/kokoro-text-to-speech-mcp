@@ -40,20 +40,20 @@ Notes:
 
 Plugins can bundle MCP servers in `.mcp.json` at the plugin root, or inline in `plugin.json`. The format is the same `mcpServers` block as in `claude_desktop_config.json`.
 
-- [ ] Create the plugin structure:
+- [x] Create the plugin structure (done as two plugins: `plugins/larkspeak/` with the skill and `plugins/larkspeak-buttons/` with the buttons mod; `.mcp.json` is not there yet, see below):
   ```
   my-plugin/
   ├── .claude-plugin/plugin.json   # name, version, description
   ├── .mcp.json                    # server config
   └── servers/...                  # server code (optional)
   ```
-- [ ] Move the `mcpServers` entry from `claude_desktop_config.json` into `.mcp.json`
+- [ ] Move the `mcpServers` entry from `claude_desktop_config.json` into `.mcp.json` (postponed: the server needs a PyPI release first, see `docs/TODO/updates.md` step 3; for now users register it by hand, see `docs/PLUGIN_INSTALLATION.md`)
 - [ ] Replace absolute paths with `${CLAUDE_PLUGIN_ROOT}/...`
-- [ ] Test locally: `claude --plugin-dir ./my-plugin`, then run `/mcp` to confirm the server is listed
-- [ ] Create a marketplace: a git repo containing `.claude-plugin/marketplace.json` that lists the plugin
-- [ ] Push it to GitHub or another git host
-- [ ] Install: `/plugin marketplace add owner/repo`, then `/plugin install my-plugin@my-marketplace`
-- [ ] (Optional) Add skills or commands to the same plugin
+- [ ] Test locally: `claude --plugin-dir ./my-plugin`, then run `/mcp` to confirm the server is listed (the buttons were tested as a mod in `dev-mods`; the installed plugin has not been tested)
+- [x] Create a marketplace: a git repo containing `.claude-plugin/marketplace.json` that lists the plugin (done, repo root)
+- [ ] Push it to GitHub or another git host (it is on branch `feature/advanced-speech-control`; merge into `master` and push)
+- [ ] Install: `/plugin marketplace add owner/repo`, then `/plugin install my-plugin@my-marketplace` (documented in `docs/PLUGIN_INSTALLATION.md`, not run on a clean computer)
+- [x] (Optional) Add skills or commands to the same plugin (done: `plugins/larkspeak/skills/larkspeak/SKILL.md`, plus the Larkspeak buttons in `hooks/`)
 
 Example `.mcp.json`:
 ```json
@@ -103,7 +103,7 @@ A plugin is a package that can bundle **both** pieces:
 
 So the server does the work (audio, model, streaming), the skill supplies the workflow, and users get both in **one install** from the Plugins settings or `/plugin install`, with versioned updates through a marketplace.
 
-- [ ] Add a `skills/dictation/SKILL.md` to the plugin describing the dictation workflow and tool usage
+- [x] Add a `skills/dictation/SKILL.md` to the plugin describing the dictation workflow and tool usage (done for text-to-speech as `skills/larkspeak/SKILL.md`; there is no dictation skill)
 - [ ] Keep the server in `.mcp.json` (Option 2 above)
 - [ ] Test: enable the plugin → `/mcp` shows the server → ask Claude to "dictate a note" and confirm the skill triggers
 
@@ -122,7 +122,7 @@ stt-plugin/
 
 Claude Code doesn't read `claude_desktop_config.json`. Instead:
 
-- [ ] Add the server from the terminal: `claude mcp add <name> -- <command> <args>`, or
+- [ ] Add the server from the terminal: `claude mcp add <name> -- <command> <args>` (documented in `docs/PLUGIN_INSTALLATION.md`, not run on a clean computer), or
 - [ ] Import the existing Claude Desktop config: `claude mcp add-from-claude-desktop`
 
 ---

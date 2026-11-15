@@ -1,0 +1,16 @@
+{
+  "name": "larkspeak",
+  "owner": { "name": "GolovchenkoA" },
+  "plugins": [
+    {
+      "name": "larkspeak",
+      "source": "./plugins/larkspeak",
+      "description": "Skill for the local text-to-speech MCP server: when and how to read text aloud and control it."
+    },
+    {
+      "name": "larkspeak-buttons",
+      "source": "./plugins/larkspeak-buttons",
+      "description": "Optional read aloud, pause, continue and stop buttons under each reply."
+    }
+  ]
+}

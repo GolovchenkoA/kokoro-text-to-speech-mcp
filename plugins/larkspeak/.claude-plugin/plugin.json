@@ -1,0 +1,5 @@
+{
+  "name": "larkspeak",
+  "version": "0.1.0",
+  "description": "A skill that tells the agent when and how to speak text aloud through the local speech MCP server. For buttons under each reply, also install larkspeak-buttons."
+}
