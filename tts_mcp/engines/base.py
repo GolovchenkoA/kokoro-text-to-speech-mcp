@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterator
 from typing import Protocol
 
 import importlib.util
+import sys
 
 import numpy as np
 
@@ -31,6 +32,14 @@ class SpeechEngine(Protocol):
         Called before a speech starts, so the caller gets the reason at once instead of a failure later.
         """
         ...
+
+
+def install_hint(requirements_file: str) -> str:
+    """How to install a model's packages: into the virtual environment the server is running in."""
+    return (
+        f"Install it into the virtual environment the server runs in: "
+        f'"{sys.executable}" -m pip install -r {requirements_file}'
+    )
 
 
 def is_installed(package: str) -> bool:

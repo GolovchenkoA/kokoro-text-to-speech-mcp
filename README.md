@@ -55,6 +55,8 @@ cd kokoro-text-to-speech-mcp
 
 ### 2. Create a virtual environment and install dependencies
 
+**Always install packages into the project's virtual environment (`.venv`), never into the system Python.** Create it once (below), then either activate it or call its Python directly: `.venv\Scripts\python.exe -m pip ...` on Windows, `.venv/bin/python -m pip ...` on Linux and macOS. Every `python -m pip` and `python -m tts_mcp...` command in this README assumes the environment is active. The server itself must be started with the environment's Python (step 5), so packages installed anywhere else are not found.
+
 `kokoro==0.9.4` declares `requires-python <3.13`, so on Python 3.14 pip needs `--ignore-requires-python`. `--only-binary=:all:` stops pip from trying to compile spaCy/blis from source (which fails on Windows). `vosk` (voice control) needs `srt`, which has no wheel, so install `srt` first.
 
 **Windows (PowerShell)**
@@ -78,7 +80,7 @@ python -m pip install --ignore-requires-python --only-binary=:all: --extra-index
 - The `--extra-index-url` line installs the smaller CPU-only PyTorch. Drop it for the default build (or if you want CUDA).
 - If installation fails on 3.14, use Python 3.12 instead (`py -3.12` / `python3.12`); the code is unchanged and `--ignore-requires-python` is no longer needed.
 - Requirement files: `requirements-base.txt` (server, audio, voice control: no model), `requirements-kokoro.txt` and `requirements-qwen3.txt` (base plus one model). `requirements.txt` is base plus Kokoro, the default model, so the commands above install it. Install only the models you use; a model that is not installed is never imported.
-- Qwen3-TTS only, or in addition to Kokoro (more languages): `python -m pip install -r requirements-qwen3.txt`; to make it the default, set `"default_model": "qwen3"` in `models.json`. Its weights are about 2.3 GB, see "Download the models in advance". Checked with the real model on a CPU (Windows, Python 3.14): it generates English and German speech and its output rate is 24 kHz. On that CPU it generated audio about four times slower than real time, so speech has pauses between sentences; a GPU is recommended for it. Not checked: a GPU, macOS, Linux, and installing it in the same environment as Kokoro (the dependency resolver reports no conflict).
+- Qwen3-TTS only, or in addition to Kokoro (more languages): `python -m pip install -r requirements-qwen3.txt` (with the virtual environment active, or `.venv/bin/python -m pip ...` / `.venv\Scripts\python.exe -m pip ...`); to make it the default, set `"default_model": "qwen3"` in `models.json`. Its weights are about 2.3 GB, see "Download the models in advance". Checked with the real model on a CPU (Windows, Python 3.14): it generates English and German speech and its output rate is 24 kHz. On that CPU it generated audio about four times slower than real time, so speech has pauses between sentences; a GPU is recommended for it. Not checked: a GPU, macOS, Linux, and installing it in the same environment as Kokoro (the dependency resolver reports no conflict).
 - Japanese and Chinese voices need extras: `python -m pip install --ignore-requires-python "misaki[ja]"` / `"misaki[zh]"`.
 
 ### 3. Install espeak-ng
@@ -149,7 +151,7 @@ The first request is slow: it downloads and loads the speech model (~330 MB). Th
 
 ## Download the models in advance
 
-Models are downloaded the first time they are used, which makes the first speech wait (minutes for the larger ones). To download them before that, for example while you have a good connection, run this in the virtual environment:
+Models are downloaded the first time they are used, which makes the first speech wait (minutes for the larger ones). To download them before that, for example while you have a good connection, run this with the project's virtual environment active (or through its Python, as in step 2):
 
 ```bash
 python -m tts_mcp.download                  # the default model (Kokoro, about 330 MB)
@@ -232,7 +234,7 @@ The process IDs are those of the Python interpreter (on Windows the venv launche
 End-to-end tests run a real in-process MCP client against the server, with the audio device, the speech engine and Vosk replaced by fakes (no model download, speakers or microphone needed):
 
 ```bash
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt   # with the virtual environment active
 python -m pytest
 ```
 
@@ -282,8 +284,8 @@ Claude Desktop logs: `%APPDATA%\Claude\logs\mcp-server-tts.log` (Windows) or `~/
 
 | Symptom | Fix |
 |---|---|
-| `No module named 'mcp.server.fastmcp'` | An old checkout/`mcp` 1.x mix-up. The code needs `mcp` 2.x: `python -m pip install -r requirements.txt` in the venv |
-| `No matching distribution found for srt` | Run `python -m pip install srt` before the main install (step 2) |
+| `No module named 'mcp.server.fastmcp'` | An old checkout/`mcp` 1.x mix-up. The code needs `mcp` 2.x: `python -m pip install -r requirements.txt` with the venv active (or through the venv's Python) |
+| `No matching distribution found for srt` | Run `python -m pip install srt` in the venv before the main install (step 2) |
 | pip tries to build spaCy / blis and fails | Add `--only-binary=:all:` or use Python 3.12 |
 | `requires a different Python` for the engine package (`kokoro`) | Add `--ignore-requires-python` (Python 3.14) or use Python 3.12 |
 | Server does not start in Claude Desktop | Check that `command` is the venv's Python (absolute path) and the paths in `args` exist |

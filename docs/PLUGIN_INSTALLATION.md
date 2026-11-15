@@ -110,7 +110,7 @@ Restart Claude if it asks you to.
 
 ## Update and remove
 
-- Update the server: `git pull`, then `python -m pip install -r requirements.txt` in the venv, then restart Claude.
+- Update the server: `git pull`, then `python -m pip install -r requirements.txt` with the project's virtual environment active (or through `.venv`'s Python), then restart Claude. Never install into the system Python.
 - Update the plugins: `/plugin marketplace update larkspeak`, then update `larkspeak` and `larkspeak-buttons`.
 - Remove only the buttons: `/plugin uninstall larkspeak-buttons@larkspeak`. Remove the skill: `/plugin uninstall larkspeak@larkspeak`. Remove the server: `claude mcp remove tts`.
 

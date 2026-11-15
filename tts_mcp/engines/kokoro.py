@@ -10,7 +10,7 @@ import numpy as np
 
 from tts_mcp.catalog import ModelSpec
 from tts_mcp.devices import resolve_device
-from tts_mcp.engines.base import is_installed
+from tts_mcp.engines.base import install_hint, is_installed
 from tts_mcp.errors import EngineUnavailable
 
 log = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class KokoroEngine:
     def check_ready(self) -> None:
         if not is_installed("kokoro"):
             raise EngineUnavailable(
-                "The Kokoro model is not installed. Run: python -m pip install -r requirements-kokoro.txt"
+                f"The Kokoro model is not installed. {install_hint('requirements-kokoro.txt')}"
             )
 
     def _pipeline(self, lang_code: str):
@@ -40,7 +40,7 @@ class KokoroEngine:
                     from kokoro import KPipeline  # heavy import: defer until first use
                 except ImportError as exc:
                     raise RuntimeError(
-                        "The Kokoro model is not installed. Run: python -m pip install -r requirements-kokoro.txt"
+                        f"The Kokoro model is not installed. {install_hint('requirements-kokoro.txt')}"
                     ) from exc
 
                 log.info("Loading Kokoro pipeline for lang_code=%s on %s", lang_code, self._device)
